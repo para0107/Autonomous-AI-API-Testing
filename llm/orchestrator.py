@@ -10,7 +10,7 @@ Fixes:
 import logging
 from typing import Dict, List, Any, Optional
 
-from llm.llm_client import LlamaClient
+from llm.llama_client import LlamaClient
 from core.agent_manager import AgentManager
 
 logger = logging.getLogger(__name__)
