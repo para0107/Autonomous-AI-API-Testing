@@ -2,6 +2,9 @@
 RAG System - main interface for retrieval-augmented generation.
 
 Provides a clean facade over embeddings, vector store, knowledge base, and retriever.
+
+FIX: Auto-initializes all components in __init__ instead of requiring
+     a separate initialize() call that was never made.
 """
 
 import logging
@@ -9,6 +12,8 @@ import numpy as np
 from typing import Dict, List, Any, Optional, Union
 
 from rag.embeddings import EmbeddingManager
+from rag.vector_store import VectorStore
+from rag.knowledge_base import KnowledgeBase
 from rag.retriever import Retriever
 
 logger = logging.getLogger(__name__)
@@ -31,23 +36,21 @@ class RAGSystem:
 
         self.embedding_manager = EmbeddingManager()
 
-        # These will be set up during initialization
-        self._vector_store = None
-        self._knowledge_base = None
-        self._retriever = None
-        self._initialized = False
-
-    def initialize(self, vector_store, knowledge_base):
-        """Initialize with vector store and knowledge base."""
-        self._vector_store = vector_store
-        self._knowledge_base = knowledge_base
-        self._retriever = Retriever(vector_store, knowledge_base)
+        # FIX: Auto-initialize all components instead of leaving them None
+        self._vector_store = VectorStore()
+        self._knowledge_base = KnowledgeBase()
+        self._retriever = Retriever(self._vector_store, self._knowledge_base)
         self._initialized = True
-        logger.info("RAG System fully initialized")
+
+        logger.info("RAG System fully initialized with vector store, knowledge base, and retriever")
 
     @property
     def knowledge_base(self):
         return self._knowledge_base
+
+    @property
+    def vector_store(self):
+        return self._vector_store
 
     @property
     def retriever(self):
@@ -93,9 +96,19 @@ class RAGSystem:
         if self._vector_store and entry.get('searchable_text'):
             try:
                 embedding = await self.generate_embeddings(entry['searchable_text'])
+                # Determine index from entry type
+                entry_type = entry.get('type', 'test_patterns')
+                index_name = {
+                    'successful_test_pattern': 'test_patterns',
+                    'failed_test_pattern': 'bug_patterns',
+                    'edge_case': 'edge_cases',
+                    'validation': 'validation_rules',
+                }.get(entry_type, 'test_patterns')
+
                 self._vector_store.add(
-                    embedding=embedding,
-                    metadata=entry,
+                    index_name=index_name,
+                    embeddings=embedding.reshape(1, -1),
+                    metadata=[entry],
                 )
             except Exception as e:
                 logger.warning(f"Failed to index entry in vector store: {e}")

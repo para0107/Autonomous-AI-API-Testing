@@ -1,9 +1,9 @@
-# ============================================
-# output/__init__.py
 """
-Output and reporting module
+output — Report generation package.
+
+Exports the ReportGenerator.
 """
 
-from .report_generator import ReportGenerator
+from output.report_generator import ReportGenerator
 
 __all__ = ['ReportGenerator']

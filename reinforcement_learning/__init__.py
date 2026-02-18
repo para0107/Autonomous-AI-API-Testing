@@ -1,5 +1,5 @@
 """Reinforcement Learning module for test optimization"""
-
+from reinforcement_learning.experience_buffer import ExperienceBuffer
 from reinforcement_learning.rl_optimizer import RLOptimizer, Experience, ACTION_TYPES
 from reinforcement_learning.state_extractor import (
     extract_state, TOTAL_STATE_DIM,
@@ -8,6 +8,8 @@ from reinforcement_learning.state_extractor import (
 )
 
 __all__ = [
-    'RLOptimizer', 'Experience', 'ACTION_TYPES',
-    'extract_state', 'TOTAL_STATE_DIM',
+    'RLOptimizer', 'ExperienceBuffer', 'ACTION_TYPES',
+    'extract_state', 'TOTAL_STATE_DIM', 'Experience'
 ]
+
+

@@ -110,16 +110,10 @@ class EndpointExtractor:
         type_mapping = {
             # C# to OpenAPI
             'string': 'string',
-            'String': 'string',
-            'int': 'integer',
             'Int32': 'integer',
             'long': 'integer',
             'Int64': 'integer',
-            'float': 'number',
             'double': 'number',
-            'Double': 'number',
-            'bool': 'boolean',
-            'Boolean': 'boolean',
             'DateTime': 'string',
             'DateOnly': 'string',
             'Guid': 'string',

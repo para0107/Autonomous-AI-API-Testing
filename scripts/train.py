@@ -1,89 +1,118 @@
-# file: scripts/train.py
-from __future__ import annotations
+"""
+FIXED scripts/train.py — BUG 8 FIX
+====================================
+Problem: Original train.py calls non-existent methods:
+    - self.optimizer.experience_buffer  → should be self.optimizer.buffer
+    - self.optimizer.train() (sync)     → should be await self.optimizer.train() (async)
+    - self.optimizer.save_checkpoint()  → should be self.optimizer.save()
+    - self.optimizer.load_checkpoint()  → should be self.optimizer.load()
+    - self.optimizer.training_step      → should be self.optimizer.total_steps
+    - self.optimizer.exploration_rate   → does not exist on RLOptimizer
 
-import time
+This is a complete rewrite matching the actual RLOptimizer interface.
+"""
+
+import asyncio
+import logging
+import argparse
 from pathlib import Path
-from typing import Optional, Dict, Any
 
-import torch
+from reinforcement_learning import RLOptimizer, ExperienceBuffer, Experience
+from reinforcement_learning.state_extractor import extract_state
 
-from config import rl_config
-from reinforcement_learning.experience_buffer import Experience
-from reinforcement_learning.rl_optimizer import RLOptimizer
+logger = logging.getLogger(__name__)
 
 
 class RLTrainer:
-    """
-    Trainer that wraps RLOptimizer.
-    RLOptimizer owns its own networks, buffer, and optimizers internally —
-    do not pass them in as constructor arguments.
-    """
+    """Training harness for the RL optimizer, matching actual RLOptimizer API."""
 
-    def __init__(
-        self,
-        save_dir: Optional[Path] = None,
-    ) -> None:
-        # RLOptimizer.__init__() takes no arguments — it reads everything from rl_config
+    def __init__(self, checkpoint_path: str = None):
         self.optimizer = RLOptimizer()
+        self.checkpoint_path = checkpoint_path
 
-        base_dir = Path(getattr(rl_config, "training_dir", "data/training"))
-        self.save_dir = Path(save_dir) if save_dir else base_dir
-        self.save_dir.mkdir(parents=True, exist_ok=True)
+    async def load_if_exists(self):
+        """Load a previous checkpoint if path is provided and exists."""
+        if self.checkpoint_path and Path(self.checkpoint_path).exists():
+            self.optimizer.load(self.checkpoint_path)
+            logger.info(f"Loaded checkpoint from {self.checkpoint_path}")
+            logger.info(f"Resuming from step {self.optimizer.total_steps}")
+        else:
+            logger.info("Starting fresh training run")
 
-    def add_experience(
-        self,
-        state: torch.Tensor,
-        action: torch.Tensor,
-        reward: float,
-        next_state: torch.Tensor,
-        done: bool,
-    ) -> None:
-        """Push a single experience into the optimizer's buffer."""
-        self.optimizer.experience_buffer.add(state, action, reward, next_state, done)
+    async def add_experience(self, experience: Experience):
+        """Add a single experience to the optimizer's buffer."""
+        self.optimizer.buffer.append(experience)
 
-    def train_step(self) -> Dict[str, Any]:
+    async def train_step(self):
         """
-        Run one PPO training step if the buffer has enough data.
-        Returns a dict of training stats, or {'skipped': True} if buffer not ready.
+        Run a single training step.
+
+        RLOptimizer.train() is async and handles:
+        - Sampling from self.buffer (a deque)
+        - Computing policy/value losses
+        - Updating networks
+        - Incrementing self.total_steps
         """
-        min_size = int(getattr(rl_config, "min_buffer_size", 32))
-        if len(self.optimizer.experience_buffer) < min_size:
-            return {"skipped": True}
+        if len(self.optimizer.buffer) < self.optimizer.batch_size:
+            logger.warning(
+                f"Buffer has {len(self.optimizer.buffer)} experiences, "
+                f"need at least {self.optimizer.batch_size} for training"
+            )
+            return None
 
-        step_before = self.optimizer.training_step
-        self.optimizer.train()
-        trained = self.optimizer.training_step > step_before
+        loss = await self.optimizer.train()
+        return loss
 
-        return {
-            "skipped": not trained,
-            "training_step": self.optimizer.training_step,
-            "exploration_rate": self.optimizer.exploration_rate,
-        }
+    async def train_epochs(self, num_epochs: int = 10, steps_per_epoch: int = 100):
+        """Run multiple training epochs."""
+        await self.load_if_exists()
 
-    def fit(self, steps: int) -> None:
-        """Run multiple train steps with lightweight logging."""
-        steps = int(steps)
-        log_interval = int(getattr(rl_config, "log_interval", 50))
-        t0 = time.time()
+        for epoch in range(num_epochs):
+            epoch_losses = []
 
-        for i in range(1, steps + 1):
-            stats = self.train_step()
-            if i % log_interval == 0 and not stats.get("skipped"):
-                print(
-                    f"[step={i}] "
-                    f"training_step={stats['training_step']} "
-                    f"exploration_rate={stats['exploration_rate']:.4f}"
-                )
+            for step in range(steps_per_epoch):
+                loss = await self.train_step()
+                if loss is not None:
+                    epoch_losses.append(loss)
 
-        dt = time.time() - t0
-        print(f"Training finished in {dt:.2f}s ({steps} steps)")
+            avg_loss = sum(epoch_losses) / len(epoch_losses) if epoch_losses else 0.0
+            logger.info(
+                f"Epoch {epoch + 1}/{num_epochs} | "
+                f"Avg Loss: {avg_loss:.4f} | "
+                f"Total Steps: {self.optimizer.total_steps} | "
+                f"Buffer Size: {len(self.optimizer.buffer)}"
+            )
 
-    def save_checkpoint(self, name: str = "checkpoint.pt") -> Path:
-        """Save model checkpoint via RLOptimizer."""
-        path = self.save_dir / name
-        self.optimizer.save_checkpoint(str(path))
-        return path
+            # Save checkpoint after each epoch
+            if self.checkpoint_path:
+                self.optimizer.save(self.checkpoint_path)
+                logger.info(f"Saved checkpoint to {self.checkpoint_path}")
 
-    def load_checkpoint(self, path: Path) -> None:
-        """Load model checkpoint via RLOptimizer."""
-        self.optimizer.load_checkpoint(str(path))
+    async def save(self):
+        """Save the current model state."""
+        if self.checkpoint_path:
+            self.optimizer.save(self.checkpoint_path)
+            logger.info(f"Final checkpoint saved to {self.checkpoint_path}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train the RL optimizer")
+    parser.add_argument(
+        "--checkpoint", type=str, default="checkpoints/rl_model.pt",
+        help="Path to save/load model checkpoint"
+    )
+    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
+    parser.add_argument("--steps", type=int, default=100, help="Training steps per epoch")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
+
+    # Ensure checkpoint directory exists
+    Path(args.checkpoint).parent.mkdir(parents=True, exist_ok=True)
+
+    trainer = RLTrainer(checkpoint_path=args.checkpoint)
+    asyncio.run(trainer.train_epochs(num_epochs=args.epochs, steps_per_epoch=args.steps))
+
+
+if __name__ == "__main__":
+    main()

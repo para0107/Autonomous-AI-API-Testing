@@ -248,3 +248,27 @@ class ReportGenerator:
             ])
 
         return output.getvalue()
+
+
+    async def generate(self, execution_results, api_spec=None):
+        """
+        Wrapper called by CoreEngine and TestGenerationPipeline.
+
+        Bridges the interface gap: the pipeline calls generate(results, api_spec)
+        but the actual implementation is generate_qase_report(results, session).
+
+        Creates a synthetic session object from the api_spec context.
+        """
+        session = {
+            'id': datetime.now().strftime('%Y%m%d_%H%M%S'),
+            'request': {},
+        }
+
+        # If api_spec is provided, enrich the session with context
+        if api_spec:
+            session['request'] = {
+                'api_spec': api_spec,
+                'timestamp': datetime.now().isoformat(),
+            }
+
+        return await self.generate_qase_report(execution_results, session)

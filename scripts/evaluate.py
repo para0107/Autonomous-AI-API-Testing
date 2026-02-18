@@ -1,100 +1,121 @@
-# file: scripts/evaluate.py
-from __future__ import annotations
+"""
+FIXED scripts/evaluate.py — BUG 9 FIX
+=======================================
+Problem: Original evaluate.py calls self.optimizer.load_checkpoint()
+which doesn't exist. Should be self.optimizer.load().
+
+This is a complete rewrite matching the actual RLOptimizer interface.
+"""
 
 import asyncio
+import logging
+import argparse
+import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Dict, Any
 
-import torch
-import torch.nn as nn
+from reinforcement_learning import RLOptimizer
+from reinforcement_learning.state_extractor import extract_state
 
-from config import rl_config
-from reinforcement_learning.policy_network import PolicyNetwork
-from reinforcement_learning.rl_optimizer import RLOptimizer
-from test_execution.executor import TestExecutor
-from output.report_generator import ReportGenerator
+logger = logging.getLogger(__name__)
 
 
-class Evaluator:
-    """
-    Runs test cases through TestExecutor and optionally generates a report.
-    Loads a policy network checkpoint if provided.
-    """
+class RLEvaluator:
+    """Evaluation harness for the trained RL optimizer."""
 
-    def __init__(
-        self,
-        checkpoint: Optional[Path] = None,
-    ) -> None:
-        # Use RLOptimizer directly — it owns the networks internally
+    def __init__(self, checkpoint_path: str):
         self.optimizer = RLOptimizer()
+        self.checkpoint_path = checkpoint_path
 
-        if checkpoint:
-            self.optimizer.load_checkpoint(str(checkpoint))
+    def load_model(self):
+        """Load the trained model. Uses optimizer.load() (not load_checkpoint)."""
+        if not Path(self.checkpoint_path).exists():
+            raise FileNotFoundError(
+                f"Checkpoint not found at {self.checkpoint_path}. "
+                "Train the model first with scripts/train.py"
+            )
+        # FIX: Use load() instead of load_checkpoint()
+        self.optimizer.load(self.checkpoint_path)
+        logger.info(f"Loaded model from {self.checkpoint_path}")
+        logger.info(f"Model trained for {self.optimizer.total_steps} steps")
 
-    async def evaluate(
-        self,
-        test_cases: List[Dict[str, Any]],
-        endpoint_url: str,
-    ) -> Dict[str, Any]:
+    async def evaluate_test_cases(
+            self, test_cases: List[Dict[str, Any]], api_spec: Dict = None
+    ) -> List[Dict[str, Any]]:
         """
-        Execute test cases through TestExecutor.
+        Evaluate the RL policy on a set of test cases.
 
-        Args:
-            test_cases: List of test case dicts.
-            endpoint_url: Base URL to test against.
-
-        Returns:
-            Dict with 'results' list and summary stats.
+        For each test case, extracts a 64-dim state vector and gets the
+        policy's action selection and confidence.
         """
-        async with TestExecutor() as executor:
-            results = []
-            for test in test_cases:
-                try:
-                    result = await executor.execute_test(test, endpoint_url)
-                    results.append(result)
-                except Exception as e:
-                    results.append({
-                        'test': test,
-                        'passed': False,
-                        'error': str(e),
-                    })
+        self.load_model()
+        api_spec = api_spec or {}
+        results = []
 
-        passed = sum(1 for r in results if r.get('passed', False))
-        return {
-            'results': results,
-            'total': len(results),
-            'passed': passed,
-            'failed': len(results) - passed,
-            'pass_rate': passed / len(results) if results else 0.0,
-        }
+        for i, test_case in enumerate(test_cases):
+            # Extract 64-dim state (matches TOTAL_STATE_DIM in rl_optimizer)
+            state = extract_state([test_case], api_spec, [], None)
 
-    def evaluate_sync(
-        self,
-        test_cases: List[Dict[str, Any]],
-        endpoint_url: str,
-    ) -> Dict[str, Any]:
-        """Synchronous wrapper around evaluate() for non-async callers."""
-        return asyncio.run(self.evaluate(test_cases, endpoint_url))
+            # Get action from the optimizer
+            action = await self.optimizer.select_action(state)
 
-    def generate_report(
-        self,
-        results: Any,
-        output_path: Optional[Path] = None,
-    ) -> Optional[Path]:
-        """
-        Generate a report using ReportGenerator.
-        """
-        out_dir = Path(getattr(rl_config, "reports_dir", "data/reports"))
-        out_dir.mkdir(parents=True, exist_ok=True)
-        target = output_path or (out_dir / "report.html")
+            results.append({
+                'test_case_index': i,
+                'test_case': test_case,
+                'selected_action': action,
+            })
 
-        try:
-            rg = ReportGenerator()
-            if hasattr(rg, "generate"):
-                rg.generate(results, target)
-                return target
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"Report generation failed: {e}")
+        return results
 
-        return None
+    def print_summary(self, results: List[Dict[str, Any]]):
+        """Print evaluation summary."""
+        logger.info(f"\n{'=' * 60}")
+        logger.info(f"Evaluation Summary")
+        logger.info(f"{'=' * 60}")
+        logger.info(f"Total test cases evaluated: {len(results)}")
+        logger.info(f"Model checkpoint: {self.checkpoint_path}")
+        logger.info(f"Model total training steps: {self.optimizer.total_steps}")
+
+        # Count action distribution
+        action_counts = {}
+        for r in results:
+            action = r['selected_action']
+            action_counts[action] = action_counts.get(action, 0) + 1
+
+        logger.info(f"\nAction Distribution:")
+        for action, count in sorted(action_counts.items()):
+            logger.info(f"  Action {action}: {count} ({100 * count / len(results):.1f}%)")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate the RL optimizer")
+    parser.add_argument(
+        "--checkpoint", type=str, default="checkpoints/rl_model.pt",
+        help="Path to model checkpoint"
+    )
+    parser.add_argument(
+        "--test-data", type=str, default=None,
+        help="Path to test data JSON file"
+    )
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO)
+
+    evaluator = RLEvaluator(checkpoint_path=args.checkpoint)
+
+    # Load test data if provided
+    test_cases = []
+    if args.test_data and Path(args.test_data).exists():
+        with open(args.test_data, 'r') as f:
+            test_cases = json.load(f)
+        logger.info(f"Loaded {len(test_cases)} test cases from {args.test_data}")
+    else:
+        logger.warning("No test data provided. Use --test-data <path>")
+        return
+
+    results = asyncio.run(evaluator.evaluate_test_cases(test_cases))
+    evaluator.print_summary(results)
+
+
+if __name__ == "__main__":
+    main()

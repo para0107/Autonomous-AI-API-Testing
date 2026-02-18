@@ -179,7 +179,7 @@ class FeedbackLoop:
             if isinstance(test_case, dict):
                 # Create minimal state for the experience
                 from reinforcement_learning.state_extractor import extract_state
-                state = extract_state([test_case], {}, self.execution_history[-20:])
+                state = extract_state([test_case], {}, self.execution_history[-20:], None)
                 next_state = state  # simplified: same state
 
                 # Map test type to action index
