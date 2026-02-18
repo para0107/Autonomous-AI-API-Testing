@@ -1,242 +1,118 @@
 """
-Validation utilities for test cases and API specifications
+Validators for test cases and API specifications.
+
+These are referenced throughout the codebase but need proper implementations
+that actually validate rather than returning True or checking minimal fields.
 """
 
 import logging
-import re
-import json
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
-class ValidationError(Exception):
-    """Custom validation error"""
-    pass
-
-
-class APISpecValidator:
-    """Validates API specifications"""
-
-    @staticmethod
-    def validate_http_method(method: Optional[str]) -> bool:
-        """Validate HTTP method"""
-        if method is None:
-            return False
-
-        valid_methods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']
-        return method.upper() in valid_methods
-
-    @staticmethod
-    def validate_endpoint_path(path: Optional[str]) -> bool:
-        """Validate endpoint path"""
-        if not path:
-            return False
-        return isinstance(path, str) and len(path) > 0
-
-    @staticmethod
-    def validate_parameter(param: Dict[str, Any]) -> bool:
-        """Validate parameter definition"""
-        required_fields = ['name']
-        return all(field in param for field in required_fields)
-
-
-class TestCaseValidator:
-    """Validates test case definitions"""
-
-    @staticmethod
-    def validate_test_case(test_case: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
-        """
-        Validate a test case
-
-        Returns:
-            Tuple of (is_valid, error_message)
-        """
-        if not isinstance(test_case, dict):
-            return False, "Test case must be a dictionary"
-
-        # Check required fields
-        required_fields = ['name']
-        missing_fields = [field for field in required_fields if field not in test_case or not test_case[field]]
-
-        if missing_fields:
-            return False, f"Missing required fields: {missing_fields}"
-
-        # Validate method if present
-        if 'method' in test_case and test_case['method'] is not None:
-            if not APISpecValidator.validate_http_method(test_case['method']):
-                return False, f"Invalid HTTP method: {test_case.get('method')}"
-
-        # Validate endpoint if present
-        if 'endpoint' in test_case and test_case['endpoint'] is not None:
-            if not APISpecValidator.validate_endpoint_path(test_case['endpoint']):
-                return False, f"Invalid endpoint path: {test_case.get('endpoint')}"
-
-        return True, None
-
-    @staticmethod
-    def validate_test_suite(test_suite: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
-        """
-        Validate a test suite
-
-        Returns:
-            Tuple of (is_valid, list_of_errors)
-        """
-        errors = []
-
-        if not isinstance(test_suite, list):
-            return False, ["Test suite must be a list"]
-
-        for idx, test_case in enumerate(test_suite):
-            is_valid, error = TestCaseValidator.validate_test_case(test_case)
-            if not is_valid:
-                errors.append(f"Test case {idx}: {error}")
-
-        return len(errors) == 0, errors
-
-
-class EmailValidator:
-    """Email validation"""
-
-    @staticmethod
-    def validate(email: str) -> bool:
-        """Validate email address"""
-        if not email or not isinstance(email, str):
-            return False
-
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return re.match(pattern, email) is not None
-
-
-class URLValidator:
-    """URL validation"""
-
-    @staticmethod
-    def validate(url: str) -> bool:
-        """Validate URL"""
-        if not url or not isinstance(url, str):
-            return False
-
-        pattern = r'^https?://[^\s/$.?#].[^\s]*$'
-        return re.match(pattern, url) is not None
-
-
-class JSONSchemaValidator:
-    """JSON schema validation"""
-
-    @staticmethod
-    def validate(data: Any, schema: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
-        """Validate data against JSON schema"""
-        # Basic validation - can be extended with jsonschema library
-        try:
-            if not isinstance(data, dict):
-                return False, "Data must be a dictionary"
-            return True, None
-        except Exception as e:
-            return False, str(e)
-
-
-class DataValidator:
-    """General data validation"""
-
-    @staticmethod
-    def validate_required_fields(data: Dict[str, Any], required_fields: List[str]) -> Tuple[bool, List[str]]:
-        """Validate required fields are present"""
-        missing = [field for field in required_fields if field not in data or data[field] is None]
-        return len(missing) == 0, missing
-
-    @staticmethod
-    def validate_field_types(data: Dict[str, Any], field_types: Dict[str, type]) -> Tuple[bool, List[str]]:
-        """Validate field types"""
-        errors = []
-        for field, expected_type in field_types.items():
-            if field in data and not isinstance(data[field], expected_type):
-                errors.append(f"{field} must be {expected_type.__name__}")
-        return len(errors) == 0, errors
-
-
-def is_valid_test_case(test_case: Dict[str, Any]) -> bool:
+def is_valid_test_case(test_case: Any) -> bool:
     """
-    Check if a test case is valid
+    Validate that a test case has the minimum required fields.
 
-    Args:
-        test_case: Test case dictionary
+    Required:
+        - name (str, non-empty)
+        - method (str, valid HTTP method)
+        - endpoint (str, non-empty)
 
-    Returns:
-        True if valid, False otherwise
+    Recommended (logged as warnings if missing):
+        - expected_status (int)
+        - test_type (str)
     """
-    try:
-        valid, error = TestCaseValidator.validate_test_case(test_case)
-        if not valid:
-            logger.debug(f"Invalid test case: {error}")
-        return valid
-    except Exception as e:
-        logger.error(f"Error validating test case: {e}")
+    if not isinstance(test_case, dict):
         return False
 
-
-def is_valid_api_spec(api_spec: Dict[str, Any]) -> bool:
-    """
-    Check if an API specification is valid
-
-    Args:
-        api_spec: API specification dictionary
-
-    Returns:
-        True if valid, False otherwise
-    """
-    try:
-        # Check if endpoints exist and is a list
-        if 'endpoints' not in api_spec:
-            logger.debug("API spec missing 'endpoints' field")
-            return False
-
-        if not isinstance(api_spec.get('endpoints'), list):
-            logger.debug("API spec 'endpoints' must be a list")
-            return False
-
-        # Check if there's at least one endpoint
-        if len(api_spec['endpoints']) == 0:
-            logger.debug("API spec has no endpoints")
-            return False
-
-        return True
-
-    except Exception as e:
-        logger.error(f"Error validating API spec: {e}")
+    # Required fields
+    name = test_case.get('name', '')
+    if not name or not isinstance(name, str):
+        logger.debug(f"Test case missing/invalid 'name': {test_case}")
         return False
 
-
-def is_valid_email(email: str) -> bool:
-    """Validate email address"""
-    return EmailValidator.validate(email)
-
-
-def is_valid_url(url: str) -> bool:
-    """Validate URL"""
-    return URLValidator.validate(url)
-
-
-def is_valid_json(data: str) -> bool:
-    """Validate JSON string"""
-    try:
-        json.loads(data)
-        return True
-    except (json.JSONDecodeError, TypeError):
+    method = test_case.get('method', '').upper()
+    valid_methods = {'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'}
+    if method not in valid_methods:
+        logger.debug(f"Test case '{name}' has invalid method: '{method}'")
         return False
 
+    endpoint = test_case.get('endpoint', '')
+    if not endpoint or not isinstance(endpoint, str):
+        logger.debug(f"Test case '{name}' missing endpoint")
+        return False
 
-def validate_test_data(test_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    # Warnings for recommended fields
+    if 'expected_status' not in test_case:
+        logger.debug(f"Test case '{name}' missing expected_status")
+
+    if 'test_type' not in test_case and 'type' not in test_case:
+        logger.debug(f"Test case '{name}' missing test_type")
+
+    return True
+
+
+def is_valid_api_spec(api_spec: Any) -> bool:
     """
-    Validate test data/payload
+    Validate that an API specification has minimum required structure.
 
-    Args:
-        test_data: Test data dictionary
-
-    Returns:
-        Tuple of (is_valid, error_message)
+    Required:
+        - endpoints (list, at least 1)
+        - Each endpoint must have: path (or route), http_method (or method)
     """
-    if not isinstance(test_data, dict):
-        return False, "Test data must be a dictionary"
+    if not isinstance(api_spec, dict):
+        return False
 
-    return True, None
+    endpoints = api_spec.get('endpoints', [])
+    if not endpoints or not isinstance(endpoints, list):
+        logger.warning("API spec has no endpoints")
+        return False
+
+    valid_count = 0
+    for ep in endpoints:
+        if not isinstance(ep, dict):
+            continue
+
+        path = ep.get('path', ep.get('route', ''))
+        method = ep.get('http_method', ep.get('method', ''))
+
+        if path and method:
+            valid_count += 1
+        else:
+            logger.debug(f"Invalid endpoint: path='{path}', method='{method}'")
+
+    if valid_count == 0:
+        logger.warning("API spec has no valid endpoints")
+        return False
+
+    if valid_count < len(endpoints):
+        logger.warning(
+            f"API spec has {len(endpoints) - valid_count} invalid endpoints "
+            f"out of {len(endpoints)}"
+        )
+
+    return True
+
+
+def validate_execution_result(result: Dict) -> bool:
+    """Validate a test execution result has required fields."""
+    if not isinstance(result, dict):
+        return False
+
+    required = ['name', 'passed']
+    for field in required:
+        if field not in result:
+            return False
+
+    return True
+
+
+def validate_rag_result(item: Dict) -> bool:
+    """Validate a RAG retrieval result has the standard format."""
+    if not isinstance(item, dict):
+        return False
+
+    required = ['id', 'score', 'metadata']
+    return all(k in item for k in required)

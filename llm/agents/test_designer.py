@@ -1,157 +1,326 @@
 """
-Test Designer Agent - WITH RAG CONTEXT
-"""
-import asyncio
-import json
-import logging
-from typing import Dict, Any, List
+Test Designer Agent - Generates test cases from API spec + RAG context.
 
-from .base_agent import BaseAgent
+Fixes:
+- _format_rag_examples now handles the standardized Dict format (not tuples)
+- Generates tests for ALL endpoints, not just first
+- Consistent error handling
+"""
+
+import logging
+import json
+import re
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
-class TestDesignerAgent(BaseAgent):
-    """Agent for designing test cases"""
+class TestDesignerAgent:
+    """Designs test cases using LLM + RAG context."""
 
     def __init__(self, llama_client):
-        super().__init__(llama_client, 'test_designer')
+        self.client = llama_client
+        self.name = "test_designer"
 
-    async def execute(self, input_data: Dict[str, Any]) -> dict[str, Any]:
-        """Design test cases"""
-        analysis = input_data.get('analyzer_results', {})
+    async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute test design task."""
+        api_spec = input_data.get('api_spec', {})
         context = input_data.get('context', {})
-        config = input_data.get('config', {})
+        analyzer_results = input_data.get('analyzer_results', {})
 
-        return await self.design_tests(analysis, context)
+        return await self.design_tests(api_spec, context, analyzer_results)
 
-    async def design_tests(self, analysis: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
-        """Design tests with RAG context"""
+    async def design_tests(self, api_spec: Dict[str, Any],
+                           context: Optional[Dict] = None,
+                           analysis: Optional[Dict] = None) -> Dict[str, Any]:
+        """
+        Design comprehensive test cases.
 
-        # Log RAG availability
-        similar_count = len(context.get('similar_tests', []))
-        logger.info(f"Designing tests with {similar_count} RAG examples available")
+        Returns:
+            Dict with 'happy_path_tests', 'negative_tests', 'validation_tests'
+        """
+        endpoints = api_spec.get('endpoints', [])
+        models = api_spec.get('models', [])
+        rules = api_spec.get('validation_rules', [])
 
-        happy_path = []
-        try:
-            happy_path = await self._generate_happy_path_tests_with_rag(analysis, context)
-            logger.info(f"✅ Generated {len(happy_path)} happy path tests")
-        except Exception as e:
-            logger.error(f"Happy path generation failed: {e}")
+        if not endpoints:
+            logger.warning("No endpoints to design tests for")
+            return {'happy_path_tests': [], 'negative_tests': [], 'validation_tests': []}
+
+        # Format RAG examples for context
+        rag_examples = self._format_rag_examples(context) if context else ""
+
+        # Generate tests for each endpoint
+        all_happy_path = []
+        all_negative = []
+        all_validation = []
+
+        for endpoint in endpoints:
+            try:
+                tests = await self._design_endpoint_tests(
+                    endpoint, models, rules, rag_examples, analysis
+                )
+                all_happy_path.extend(tests.get('happy_path', []))
+                all_negative.extend(tests.get('negative', []))
+                all_validation.extend(tests.get('validation', []))
+            except Exception as e:
+                logger.error(f"Failed to design tests for {endpoint.get('path')}: {e}")
 
         return {
-            'happy_path_tests': happy_path,
-            'edge_case_tests': [],
-            'validation_tests': [],
-            'total_tests': len(happy_path)
+            'happy_path_tests': all_happy_path,
+            'negative_tests': all_negative,
+            'validation_tests': all_validation,
         }
 
-    async def _generate_happy_path_tests_with_rag(self, analysis: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Generate tests using RAG examples"""
+    async def _design_endpoint_tests(self, endpoint: Dict, models: List[Dict],
+                                     rules: List, rag_examples: str,
+                                     analysis: Optional[Dict]) -> Dict[str, List]:
+        """Design tests for a single endpoint."""
+        method = endpoint.get('http_method', endpoint.get('method', 'GET'))
+        path = endpoint.get('path', endpoint.get('route', ''))
+        params = endpoint.get('parameters', [])
 
-        # Format RAG examples for prompt
-        rag_section = self._format_rag_examples(context)
-
-        endpoint = analysis.get('endpoint', '/api/endpoint')
-        method = analysis.get('method', 'GET')
-
-        prompt = f"""You are an expert API test designer. Generate 5 comprehensive test cases.
-
-ENDPOINT TO TEST:
-- Path: {endpoint}
-- Method: {method}
-- Auth Required: {analysis.get('auth_requirements', {}).get('required', False)}
-
-{rag_section}
-
-Generate 5 test cases in this EXACT JSON format:
-[
-  {{
-    "name": "test_get_reservation_valid_id",
-    "test_type": "happy_path",
-    "method": "{method}",
-    "endpoint": "{endpoint}",
-    "test_data": {{"id": 1}},
-    "expected_status": 200,
-    "description": "Retrieve reservation with valid ID"
-  }}
-]
-
-CRITICAL RULES:
-1. Use the actual endpoint: {endpoint}
-2. Each test MUST have: name, test_type, method, endpoint, test_data, expected_status
-3. Generate realistic test data based on the endpoint
-4. Return ONLY the JSON array, no other text
-5. Learn from the examples above to create similar high-quality tests
-
-Generate JSON array now:"""
+        prompt = self._build_test_prompt(endpoint, models, rules, rag_examples)
 
         try:
-            tests = await self.generate_json_with_retry(prompt, max_retries=2)
-            if isinstance(tests, list) and len(tests) > 0:
-                logger.info(f"Generated {len(tests)} tests using RAG context")
-                return tests[:10]
-            return []
+            response = await self.client.generate(
+                prompt=prompt,
+                system_prompt=(
+                    "You are an expert API test designer. Generate test cases in JSON format. "
+                    "Return a JSON object with keys: happy_path (list), negative (list), validation (list). "
+                    "Each test case should have: name, method, endpoint, test_data (dict), "
+                    "expected_status (int), expected_response (dict or null), assertions (list of strings), "
+                    "test_type, priority (high/medium/low)."
+                ),
+                max_tokens=3000,
+                temperature=0.4
+            )
+
+            tests = self._parse_test_response(response, method, path)
+            return tests
+
         except Exception as e:
-            logger.error(f"Test generation failed: {e}")
-            return []
+            logger.warning(f"LLM test generation failed for {method} {path}: {e}")
+            # Return basic auto-generated tests
+            return self._generate_basic_tests(endpoint, rules)
 
-    def _format_rag_examples(self, context: Dict[str, Any]) -> str:
-        """Format RAG examples for the prompt"""
-        similar_tests = context.get('similar_tests', [])
+    def _build_test_prompt(self, endpoint: Dict, models: List[Dict],
+                           rules: List, rag_examples: str) -> str:
+        """Build prompt for test generation."""
+        method = endpoint.get('http_method', endpoint.get('method', 'GET'))
+        path = endpoint.get('path', endpoint.get('route', ''))
+        params = endpoint.get('parameters', [])
 
-        if not similar_tests or len(similar_tests) == 0:
-            logger.warning("No RAG examples to format")
-            return "⚠️ No similar test examples found in knowledge base."
+        lines = [
+            f"Generate test cases for this API endpoint:",
+            f"",
+            f"Method: {method}",
+            f"Path: {path}",
+        ]
 
-        logger.info(f"Formatting {len(similar_tests)} RAG examples")
+        if params:
+            lines.append("Parameters:")
+            for p in params:
+                name = p.get('name', '')
+                ptype = p.get('type', p.get('data_type', 'string'))
+                required = p.get('required', False)
+                location = p.get('location', p.get('in', ''))
+                lines.append(f"  - {name} ({ptype}, {location}, required={required})")
 
-        examples_text = "📚 EXAMPLES FROM KNOWLEDGE BASE (476 test cases):\n"
-        examples_text += "Learn from these real test cases:\n\n"
+        if endpoint.get('request_body') or endpoint.get('body_model'):
+            lines.append(f"Request Body Model: {endpoint.get('request_body', endpoint.get('body_model'))}")
 
-        # Handle different data structures
-        for idx, item in enumerate(similar_tests[:3], 1):
-            try:
-                # Try unpacking as tuple
-                if isinstance(item, tuple) and len(item) == 2:
-                    distance, metadata = item
-                elif isinstance(item, tuple) and len(item) == 3:
-                    # If it's (id, distance, metadata)
-                    _, distance, metadata = item
-                elif isinstance(item, dict):
-                    # If it's already a dict
-                    distance = item.get('score', 0.5)
-                    metadata = item
-                else:
-                    logger.warning(f"Unknown item type: {type(item)}")
+        if endpoint.get('response_model'):
+            lines.append(f"Response Model: {endpoint.get('response_model')}")
+
+        # Add relevant model details
+        for model in models[:5]:
+            model_name = model.get('name', '')
+            if model_name in str(endpoint):
+                fields = model.get('properties', model.get('fields', []))
+                lines.append(f"\nModel {model_name}:")
+                for f in fields[:10]:
+                    if isinstance(f, dict):
+                        lines.append(f"  - {f.get('name')}: {f.get('type', 'string')}")
+
+        # Add relevant validation rules
+        applicable_rules = [r for r in rules if r.get('endpoint') == path]
+        if applicable_rules:
+            lines.append("\nValidation Rules:")
+            for r in applicable_rules[:10]:
+                lines.append(f"  - {r.get('field', '')}: {r.get('rule', r.get('type', ''))}")
+
+        # Add RAG examples
+        if rag_examples:
+            lines.append(f"\nSimilar test examples from knowledge base:\n{rag_examples}")
+
+        lines.append("\nGenerate comprehensive tests covering happy path, negative cases, and validation.")
+
+        return '\n'.join(lines)
+
+    def _format_rag_examples(self, context: Dict) -> str:
+        """
+        Format RAG context for inclusion in prompts.
+
+        FIX: Handles standardized Dict format from Retriever.
+        Old code tried to unpack tuples — now we use dict keys consistently.
+        """
+        if not context:
+            return ""
+
+        lines = []
+
+        similar = context.get('similar_tests', [])
+        if similar:
+            lines.append("Similar Tests:")
+            for item in similar[:5]:
+                # FIX: Standardized format is always Dict with id, score, metadata
+                if isinstance(item, dict):
+                    metadata = item.get('metadata', {})
+                    score = item.get('score', 0)
+
+                    # metadata might be a nested dict or a flat dict
+                    if isinstance(metadata, dict):
+                        title = metadata.get('title', metadata.get('name', item.get('id', 'unknown')))
+                        description = metadata.get('description', '')
+                        test_type = metadata.get('type', metadata.get('test_type', ''))
+                    else:
+                        title = str(metadata)
+                        description = ''
+                        test_type = ''
+
+                    lines.append(f"  [{score:.2f}] {title}")
+                    if description:
+                        lines.append(f"    {description[:200]}")
+                    if test_type:
+                        lines.append(f"    Type: {test_type}")
+
+        edge_cases = context.get('edge_cases', [])
+        if edge_cases:
+            lines.append("\nEdge Case Patterns:")
+            for item in edge_cases[:3]:
+                if isinstance(item, dict):
+                    metadata = item.get('metadata', {})
+                    title = (metadata.get('title', '') if isinstance(metadata, dict)
+                             else str(metadata))
+                    lines.append(f"  - {title}")
+
+        return '\n'.join(lines) if lines else ""
+
+    def _parse_test_response(self, response: str, method: str, path: str) -> Dict[str, List]:
+        """Parse LLM response into test cases."""
+        result = {'happy_path': [], 'negative': [], 'validation': []}
+
+        if not response:
+            return result
+
+        text = response.strip()
+
+        # Remove markdown fences
+        if '```' in text:
+            lines = text.split('\n')
+            clean_lines = []
+            in_code = False
+            for line in lines:
+                if line.strip().startswith('```'):
+                    in_code = not in_code
                     continue
+                if in_code or not line.strip().startswith('```'):
+                    clean_lines.append(line)
+            text = '\n'.join(clean_lines)
 
-                if not metadata:
-                    continue
+        try:
+            parsed = json.loads(text.strip())
+        except json.JSONDecodeError:
+            match = re.search(r'\{[\s\S]*\}', text)
+            if match:
+                try:
+                    parsed = json.loads(match.group())
+                except json.JSONDecodeError:
+                    logger.warning("Could not parse LLM test response as JSON")
+                    return result
+            else:
+                return result
 
-                title = metadata.get('title', 'Unknown')
-                description = metadata.get('description', '')
-                steps = metadata.get('steps', [])
+        if not isinstance(parsed, dict):
+            return result
 
-                similarity = max(0, 1 - distance) if distance < 10 else distance
-                examples_text += f"Example {idx} (relevance: {similarity:.1%}): {title}\n"
-
-                if description:
-                    examples_text += f"  Description: {description}\n"
-
-                if steps:
-                    for step_idx, step in enumerate(steps[:2], 1):
-                        action = step.get('action', '')
-                        expected = step.get('expected_result', '')
-                        if action:
-                            examples_text += f"  Step: {action}\n"
-                        if expected:
-                            examples_text += f"    Expected: {expected}\n"
-
-                examples_text += "\n"
-
-            except Exception as e:
-                logger.error(f"Error formatting RAG example {idx}: {e}")
+        # Normalize and validate each test case
+        for category in ('happy_path', 'negative', 'validation'):
+            tests = parsed.get(category, [])
+            if not isinstance(tests, list):
                 continue
+            for test in tests:
+                if isinstance(test, dict):
+                    normalized = self._normalize_test_case(test, method, path, category)
+                    if normalized:
+                        result[category].append(normalized)
 
-        return examples_text
+        return result
+
+    def _normalize_test_case(self, test: Dict, default_method: str,
+                             default_path: str, category: str) -> Optional[Dict]:
+        """Ensure test case has all required fields."""
+        return {
+            'name': test.get('name', f'{category}_test'),
+            'method': test.get('method', default_method).upper(),
+            'endpoint': test.get('endpoint', default_path),
+            'test_data': test.get('test_data', {}),
+            'expected_status': int(test.get('expected_status', 200)),
+            'expected_response': test.get('expected_response'),
+            'assertions': test.get('assertions', []),
+            'test_type': test.get('test_type', category),
+            'priority': test.get('priority', 'medium'),
+        }
+
+    def _generate_basic_tests(self, endpoint: Dict, rules: List) -> Dict[str, List]:
+        """Generate basic tests when LLM fails."""
+        method = endpoint.get('http_method', endpoint.get('method', 'GET')).upper()
+        path = endpoint.get('path', endpoint.get('route', ''))
+        params = endpoint.get('parameters', [])
+
+        happy_path = [{
+            'name': f'Happy path: {method} {path}',
+            'method': method,
+            'endpoint': path,
+            'test_data': self._generate_sample_data(params),
+            'expected_status': 200 if method == 'GET' else 201 if method == 'POST' else 200,
+            'expected_response': None,
+            'assertions': [f'status == {200 if method == "GET" else 201 if method == "POST" else 200}'],
+            'test_type': 'happy_path',
+            'priority': 'high',
+        }]
+
+        negative = []
+        if method in ('POST', 'PUT', 'PATCH'):
+            negative.append({
+                'name': f'Empty body: {method} {path}',
+                'method': method,
+                'endpoint': path,
+                'test_data': {},
+                'expected_status': 400,
+                'expected_response': None,
+                'assertions': ['status == 400'],
+                'test_type': 'negative',
+                'priority': 'medium',
+            })
+
+        return {'happy_path': happy_path, 'negative': negative, 'validation': []}
+
+    def _generate_sample_data(self, params: List[Dict]) -> Dict:
+        """Generate sample data from parameter definitions."""
+        data = {}
+        for p in params:
+            name = p.get('name', '')
+            ptype = p.get('type', p.get('data_type', 'string')).lower()
+            if 'id' in name.lower():
+                data[name] = 1
+            elif ptype in ('int', 'integer', 'number'):
+                data[name] = 1
+            elif ptype == 'boolean':
+                data[name] = True
+            elif ptype == 'array':
+                data[name] = []
+            else:
+                data[name] = f"test_{name}"
+        return data

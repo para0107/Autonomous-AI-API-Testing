@@ -4,11 +4,11 @@ Test executor for running API tests
 
 import logging
 import asyncio
+import re
 import aiohttp
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import json
-
 
 from config import settings
 
@@ -22,10 +22,12 @@ class TestExecutor:
         self.timeout = aiohttp.ClientTimeout(total=settings.DEFAULT_TIMEOUT)
         self.max_retries = settings.MAX_RETRIES
         self.session = None
+        self.auth_token = None
+        self.ssl_verify = True
 
     async def __aenter__(self):
         """Async context manager entry"""
-        connector = aiohttp.TCPConnector(ssl=False)
+        connector = aiohttp.TCPConnector(ssl=self.ssl_verify)
         self.session = aiohttp.ClientSession(timeout=self.timeout, connector=connector)
         return self
 
@@ -36,33 +38,24 @@ class TestExecutor:
 
     async def execute_batch(self, test_cases: List[Dict[str, Any]],
                             endpoint_url: str, parallel: bool = True) -> List[Dict[str, Any]]:
-        """
-        Execute batch of test cases
-
-        Args:
-            test_cases: List of test cases to execute
-            endpoint_url: Base URL of API
-            parallel: Execute in parallel or sequential
-
-        Returns:
-            List of execution results
-        """
+        """Execute batch of test cases"""
         logger.info(f"Executing {len(test_cases)} test cases")
 
         if not self.session:
-            self.session = aiohttp.ClientSession(timeout=self.timeout)
+            connector = aiohttp.TCPConnector(ssl=self.ssl_verify)
+            self.session = aiohttp.ClientSession(timeout=self.timeout, connector=connector)
 
         if parallel:
             tasks = [self.execute_test(test, endpoint_url) for test in test_cases]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Handle exceptions
             processed_results = []
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     logger.error(f"Test {i} failed with exception: {result}")
                     processed_results.append({
                         'test_case': test_cases[i],
+                        'name': test_cases[i].get('name', 'unknown'),
                         'passed': False,
                         'error': str(result),
                         'execution_time': 0
@@ -80,16 +73,7 @@ class TestExecutor:
 
     async def execute_test(self, test_case: Dict[str, Any],
                            base_url: str) -> Dict[str, Any]:
-        """
-        Execute single test case
-
-        Args:
-            test_case: Test case definition
-            base_url: Base URL of API
-
-        Returns:
-            Execution result
-        """
+        """Execute single test case"""
         start_time = datetime.now()
 
         try:
@@ -97,21 +81,20 @@ class TestExecutor:
             method = test_case.get('method', 'GET').upper()
             test_data = test_case.get('test_data', {})
 
-            # Build URL with path params replaced
             url = self._build_url(base_url, endpoint, test_data)
-
             headers = self._build_headers(test_case)
-
-            # Prepare request parameters
             request_params = self._prepare_request_params(method, test_data)
-            # Execute with retry
+
+            # Ensure session exists
+            if not self.session:
+                connector = aiohttp.TCPConnector(ssl=self.ssl_verify)
+                self.session = aiohttp.ClientSession(timeout=self.timeout, connector=connector)
+
             response_data = await self._execute_with_retry(
                 method, url, headers, request_params
             )
 
-            # Validate response
             validation_result = self._validate_response(test_case, response_data)
-
             execution_time = (datetime.now() - start_time).total_seconds()
 
             return {
@@ -161,11 +144,9 @@ class TestExecutor:
                         **params
                 ) as response:
                     status = response.status
-
-                    # Try to parse JSON response
                     try:
                         body = await response.json()
-                    except:
+                    except Exception:
                         body = await response.text()
 
                     return {
@@ -174,11 +155,11 @@ class TestExecutor:
                         'body': body
                     }
 
-            except asyncio.TimeoutError as e:
+            except asyncio.TimeoutError:
                 last_error = f"Request timeout (attempt {attempt + 1}/{self.max_retries})"
                 logger.warning(last_error)
                 if attempt < self.max_retries - 1:
-                    await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
+                    await asyncio.sleep(1 * (attempt + 1))
 
             except aiohttp.ClientError as e:
                 last_error = f"Client error: {str(e)}"
@@ -198,14 +179,9 @@ class TestExecutor:
         base_url = base_url.rstrip('/')
         endpoint = endpoint.lstrip('/')
 
-        # Replace path parameters with actual values
         if test_data:
-            # Find all {param} in endpoint
-            import re
             path_params = re.findall(r'\{(\w+)\}', endpoint)
-
             for param in path_params:
-                # Use value from test_data or default to 1
                 value = test_data.get(param, test_data.get('id', 1))
                 endpoint = endpoint.replace(f'{{{param}}}', str(value))
 
@@ -218,13 +194,13 @@ class TestExecutor:
             'Accept': 'application/json'
         }
 
-        # Add custom headers from test case
         if 'headers' in test_case:
             headers.update(test_case['headers'])
 
-        # Add authentication if present
-        if 'auth_token' in test_case:
-            headers['Authorization'] = f"Bearer {test_case['auth_token']}"
+        # Use test-case-level auth, then fall back to executor-level auth
+        auth_token = test_case.get('auth_token') or self.auth_token
+        if auth_token:
+            headers['Authorization'] = f"Bearer {auth_token}"
 
         return headers
 
@@ -233,10 +209,12 @@ class TestExecutor:
         params = {}
 
         if method in ['GET', 'DELETE']:
-            # Query parameters
-            params['params'] = test_data
+            # Filter out path params from query params
+            params['params'] = {
+                k: v for k, v in test_data.items()
+                if not isinstance(v, (dict, list))
+            }
         elif method in ['POST', 'PUT', 'PATCH']:
-            # JSON body
             params['json'] = test_data
 
         return params
@@ -251,46 +229,37 @@ class TestExecutor:
         }
 
         try:
-            # Validate status code
+            # 1. Validate status code
             expected_status = test_case.get('expected_status', 200)
             actual_status = response_data['status']
 
-            if actual_status != expected_status:
+            status_passed = actual_status == expected_status
+            result['assertions'].append({
+                'type': 'status_code',
+                'expected': expected_status,
+                'actual': actual_status,
+                'passed': status_passed
+            })
+            if not status_passed:
                 result['passed'] = False
-                result['assertions'].append({
-                    'type': 'status_code',
-                    'expected': expected_status,
-                    'actual': actual_status,
-                    'passed': False
-                })
-            else:
-                result['assertions'].append({
-                    'type': 'status_code',
-                    'expected': expected_status,
-                    'actual': actual_status,
-                    'passed': True
-                })
 
-            # Validate response body
+            # 2. Validate response body if expected
             if 'expected_response' in test_case and test_case['expected_response']:
                 expected = test_case['expected_response']
                 actual = response_data.get('body')
-
                 body_valid = self._validate_response_body(expected, actual)
                 result['assertions'].append({
                     'type': 'response_body',
                     'passed': body_valid
                 })
-
                 if not body_valid:
                     result['passed'] = False
 
-            # Execute custom assertions
+            # 3. FIX: Execute custom assertions properly
             if 'assertions' in test_case:
-                for assertion in test_case['assertions']:
-                    assertion_result = self._execute_assertion(assertion, response_data)
+                for assertion_str in test_case['assertions']:
+                    assertion_result = self._execute_assertion(assertion_str, response_data)
                     result['assertions'].append(assertion_result)
-
                     if not assertion_result['passed']:
                         result['passed'] = False
 
@@ -304,7 +273,6 @@ class TestExecutor:
     def _validate_response_body(self, expected: Any, actual: Any) -> bool:
         """Validate response body matches expected"""
         if isinstance(expected, dict) and isinstance(actual, dict):
-            # Check if all expected keys are present with correct values
             for key, value in expected.items():
                 if key not in actual:
                     return False
@@ -315,29 +283,153 @@ class TestExecutor:
             return expected == actual
 
     def _execute_assertion(self, assertion: str, response_data: Dict) -> Dict[str, Any]:
-        """Execute custom assertion"""
-        # Simple assertion execution
-        # In a real implementation, this would be more sophisticated
+        """
+        Execute a custom assertion string against response data.
+
+        FIX: Actually evaluates assertions instead of always returning True.
+
+        Supported formats:
+            "status == 200"
+            "body.field == value"
+            "body.field != null"
+            "body.items.length > 0"
+            "body.field contains value"
+        """
+        assertion = assertion.strip()
+        body = response_data.get('body', {})
+        status = response_data.get('status')
 
         try:
-            # Example assertions:
-            # "status == 200"
-            # "body.user.id != null"
-            # "body.items.length > 0"
+            # status == N
+            m = re.match(r'status\s*==\s*(\d+)', assertion)
+            if m:
+                expected = int(m.group(1))
+                passed = status == expected
+                return {
+                    'type': 'status_check', 'assertion': assertion,
+                    'expected': expected, 'actual': status, 'passed': passed
+                }
 
-            # For now, just mark as passed
+            # body.path operator value
+            m = re.match(
+                r'body\.(\S+)\s+(==|!=|>|<|>=|<=|contains|is not null|is null)\s*(.*)',
+                assertion
+            )
+            if m:
+                path = m.group(1)
+                operator = m.group(2).strip()
+                expected_str = m.group(3).strip().strip('"\'') if m.group(3) else None
+
+                actual_value = self._get_nested_value(body, path)
+
+                if operator == 'is not null':
+                    passed = actual_value is not None
+                elif operator == 'is null':
+                    passed = actual_value is None
+                elif operator == '==':
+                    passed = str(actual_value) == expected_str
+                elif operator == '!=':
+                    if expected_str == 'null':
+                        passed = actual_value is not None
+                    else:
+                        passed = str(actual_value) != expected_str
+                elif operator == 'contains':
+                    if isinstance(actual_value, (str, list)):
+                        passed = expected_str in str(actual_value)
+                    else:
+                        passed = False
+                elif operator in ('>', '<', '>=', '<='):
+                    try:
+                        actual_num = float(actual_value) if actual_value is not None else 0
+                        expected_num = float(expected_str)
+                        if operator == '>':
+                            passed = actual_num > expected_num
+                        elif operator == '<':
+                            passed = actual_num < expected_num
+                        elif operator == '>=':
+                            passed = actual_num >= expected_num
+                        elif operator == '<=':
+                            passed = actual_num <= expected_num
+                        else:
+                            passed = False
+                    except (ValueError, TypeError):
+                        passed = False
+                else:
+                    passed = False
+
+                return {
+                    'type': 'body_assertion', 'assertion': assertion,
+                    'path': path, 'operator': operator,
+                    'expected': expected_str, 'actual': actual_value,
+                    'passed': passed
+                }
+
+            # Handle .length specially: body.items.length > 0
+            m = re.match(r'body\.(.+)\.length\s*(==|>|<|>=|<=)\s*(\d+)', assertion)
+            if m:
+                path = m.group(1)
+                operator = m.group(2)
+                expected_len = int(m.group(3))
+                actual_value = self._get_nested_value(body, path)
+
+                try:
+                    actual_len = len(actual_value) if actual_value is not None else 0
+                except TypeError:
+                    actual_len = 0
+
+                if operator == '==':
+                    passed = actual_len == expected_len
+                elif operator == '>':
+                    passed = actual_len > expected_len
+                elif operator == '<':
+                    passed = actual_len < expected_len
+                elif operator == '>=':
+                    passed = actual_len >= expected_len
+                elif operator == '<=':
+                    passed = actual_len <= expected_len
+                else:
+                    passed = False
+
+                return {
+                    'type': 'length_assertion', 'assertion': assertion,
+                    'expected_length': expected_len, 'actual_length': actual_len,
+                    'passed': passed
+                }
+
+            # Unrecognized assertion format
+            logger.warning(f"Unrecognized assertion format: {assertion}")
             return {
-                'type': 'custom',
-                'assertion': assertion,
-                'passed': True
+                'type': 'unknown', 'assertion': assertion,
+                'passed': False, 'error': 'Unrecognized assertion format'
             }
+
         except Exception as e:
             return {
-                'type': 'custom',
-                'assertion': assertion,
-                'passed': False,
-                'error': str(e)
+                'type': 'error', 'assertion': assertion,
+                'passed': False, 'error': str(e)
             }
+
+    def _get_nested_value(self, data: Any, path: str) -> Any:
+        """Get value from nested dict/list using dot notation."""
+        keys = path.split('.')
+        value = data
+
+        for key in keys:
+            if value is None:
+                return None
+
+            if isinstance(value, dict):
+                value = value.get(key)
+            elif isinstance(value, list):
+                try:
+                    idx = int(key)
+                    value = value[idx]
+                except (ValueError, IndexError):
+                    return None
+            else:
+                return None
+
+        return value
 
     async def close(self):
         """Close the session"""

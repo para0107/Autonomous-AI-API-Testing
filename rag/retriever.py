@@ -1,298 +1,174 @@
 """
-Retrieval logic for RAG system
+RAG Retriever - Standardized version
+
+Fix: All retrieval methods now return a consistent format:
+    List[Dict] where each Dict has:
+        - id: str
+        - score: float (similarity score, 0.0 to 1.0)
+        - metadata: Dict (the actual content/data)
+        - rank: int (1-based position)
+        - source: str (which retrieval method produced this)
 """
 
 import logging
 import numpy as np
-from typing import Dict, List, Any, Tuple, Optional, Union
-from sentence_transformers import CrossEncoder
-import heapq
-
-from config import rag_config
+from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
+# Canonical result type
+class RetrievalResult:
+    """Standard result from any retrieval operation."""
+
+    __slots__ = ('id', 'score', 'metadata', 'rank', 'source')
+
+    def __init__(self, id: str, score: float, metadata: Dict, rank: int, source: str = ''):
+        self.id = id
+        self.score = score
+        self.metadata = metadata
+        self.rank = rank
+        self.source = source
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'score': self.score,
+            'metadata': self.metadata,
+            'rank': self.rank,
+            'source': self.source,
+        }
+
+
 class Retriever:
-    """Handles retrieval of relevant documents from vector store"""
+    """Retrieves relevant test cases and patterns from the vector store."""
 
-    def __init__(self, vector_store, embedding_manager):
+    def __init__(self, vector_store, knowledge_base=None):
         self.vector_store = vector_store
-        self.embedding_manager = embedding_manager
+        self.knowledge_base = knowledge_base
+        logger.info("Retriever initialized")
 
-        # Load reranking model if enabled - token comes from rag_config
-        self.reranker = None
-        if rag_config.rerank:
-            try:
-                logger.info(f"Loading reranking model: {rag_config.rerank_model}")
-
-                # Use token from config
-                if rag_config.hf_token:
-                    logger.info("Using HuggingFace token from config")
-                    # Try both parameter names for compatibility
-                    try:
-                        self.reranker = CrossEncoder(
-                            rag_config.rerank_model,
-                            token=rag_config.hf_token  # Newer versions use 'token'
-                        )
-                    except TypeError:
-                        # Fallback for older versions
-                        self.reranker = CrossEncoder(
-                            rag_config.rerank_model,
-                            use_auth_token=rag_config.hf_token
-                        )
-                else:
-                    logger.warning("No HuggingFace token found in config, attempting anonymous access")
-                    logger.warning("Add HG_TOKEN to your .env file for authenticated model access")
-                    self.reranker = CrossEncoder(rag_config.rerank_model)
-
-                logger.info(f"✅ Successfully loaded reranking model: {rag_config.rerank_model}")
-
-            except Exception as e:
-                logger.error(f"❌ Failed to load reranking model: {e}")
-                logger.warning("⚠️  Continuing without reranking - results may be less accurate")
-                logger.warning("To fix: Add HG_TOKEN to your .env file or set rerank=False in config")
-                self.reranker = None
-        else:
-            logger.info("Reranking disabled in config")
-
-    async def retrieve(self, query: Union[str, np.ndarray],
-                       index_name: str, k: int = 10,
-                       rerank: bool = None) -> List[Dict[str, Any]]:
+    async def retrieve(self, query_embedding: np.ndarray,
+                       k: int = 10,
+                       filter_dict: Optional[Dict] = None,
+                       source_tag: str = 'general') -> List[Dict]:
         """
-        Retrieve relevant documents
+        Retrieve top-k similar items from the vector store.
 
         Args:
-            query: Query text or embedding
-            index_name: Index to search
+            query_embedding: Query vector
             k: Number of results
-            rerank: Whether to rerank results
+            filter_dict: Optional metadata filters
+            source_tag: Tag identifying the retrieval source
 
         Returns:
-            List of retrieved documents
+            List[Dict] with standardized keys: id, score, metadata, rank, source
         """
-        # Generate embedding if query is text
-        if isinstance(query, str):
-            query_embedding = await self.embedding_manager.embed_text(query)
-        else:
-            query_embedding = query
-
-        # Search vector store
-        fetch_k = k * 2 if (rerank and self.reranker) else k
-        ids, distances, metadata = self.vector_store.search(
-            index_name, query_embedding, fetch_k
-        )
-
-        # Prepare results
-        results = []
-        for i, (id_, dist, meta) in enumerate(zip(ids, distances, metadata)):
-            if id_ != -1:  # Valid result
-                result = {
-                    'id': id_,
-                    'score': 1 / (1 + dist),  # Convert distance to similarity score
-                    'metadata': meta,
-                    'rank': i
-                }
-                results.append(result)
-
-        # Rerank if enabled AND reranker is available
-        should_rerank = (rerank if rerank is not None else rag_config.rerank)
-        if should_rerank and self.reranker and isinstance(query, str):
-            try:
-                results = self._rerank_results(query, results)
-                logger.debug(f"Reranked {len(results)} results")
-            except Exception as e:
-                logger.warning(f"Reranking failed: {e}, using original ranking")
-
-        return results[:k]
+        try:
+            raw_results = self.vector_store.search(query_embedding, k=k)
+            return self._standardize_results(raw_results, source_tag)
+        except Exception as e:
+            logger.error(f"Retrieval failed: {e}")
+            return []
 
     async def retrieve_similar_tests(self, query_embedding: np.ndarray,
-                                     k: int = 10) -> List[Dict[str, Any]]:
-        """Retrieve similar test cases"""
-        results = await self.retrieve(
-            query_embedding,
-            'test_patterns',
-            k
+                                     k: int = 10) -> List[Dict]:
+        """Retrieve similar test cases."""
+        return await self.retrieve(
+            query_embedding, k=k, source_tag='similar_tests'
         )
-
-        # Enhance with test-specific information
-        for result in results:
-            if 'test_code' in result.get('metadata', {}):
-                result['test_type'] = self._classify_test_type(result['metadata']['test_code'])
-
-        return results
 
     async def retrieve_edge_cases(self, query_embedding: np.ndarray,
-                                  k: int = 5) -> List[Dict[str, Any]]:
-        """Retrieve relevant edge cases"""
-        results = await self.retrieve(
-            query_embedding,
-            'edge_cases',
-            k
+                                  k: int = 10) -> List[Dict]:
+        """Retrieve edge case patterns."""
+        return await self.retrieve(
+            query_embedding, k=k,
+            filter_dict={'type': 'edge_case'},
+            source_tag='edge_cases'
         )
-
-        # Filter by relevance threshold
-        threshold = rag_config.similarity_threshold
-        filtered = [r for r in results if r['score'] >= threshold]
-
-        return filtered
 
     async def retrieve_validation_patterns(self, query_embedding: np.ndarray,
-                                           k: int = 5) -> List[Dict[str, Any]]:
-        """Retrieve validation patterns"""
+                                           k: int = 10) -> List[Dict]:
+        """Retrieve validation patterns."""
         return await self.retrieve(
-            query_embedding,
-            'validation_rules',
-            k
+            query_embedding, k=k,
+            filter_dict={'type': 'validation'},
+            source_tag='validation_patterns'
         )
 
-    async def hybrid_search(self, query: str, indices: List[str] = None,
-                            k: int = 10) -> List[Dict[str, Any]]:
+    def _standardize_results(self, raw_results: Any,
+                             source_tag: str) -> List[Dict]:
         """
-        Perform hybrid search across multiple indices
+        Convert any result format from VectorStore into standard List[Dict].
 
-        Args:
-            query: Query text
-            indices: Indices to search (None for all)
-            k: Number of results per index
-
-        Returns:
-            Combined and ranked results
+        Handles these known formats:
+            - List[Dict] with id, score, metadata
+            - List[Tuple] of (id, score, metadata)
+            - List[Tuple] of (id, score)
+            - Single dict with 'results' key
+            - numpy arrays with metadata
         """
-        # Generate embedding
-        query_embedding = await self.embedding_manager.embed_text(query)
+        if raw_results is None:
+            return []
 
-        # Search across indices
-        all_results = self.vector_store.search_multiple_indices(
-            query_embedding, indices, k
-        )
+        # If it's a dict with a 'results' key, unwrap
+        if isinstance(raw_results, dict):
+            if 'results' in raw_results:
+                raw_results = raw_results['results']
+            else:
+                raw_results = [raw_results]
 
-        # Combine and rank results
-        combined_results = []
-        for index_name, index_results in all_results.items():
-            for i, (id_, dist, meta) in enumerate(zip(
-                    index_results['ids'],
-                    index_results['distances'],
-                    index_results['metadata']
-            )):
-                if id_ != -1:
-                    result = {
-                        'id': id_,
-                        'index': index_name,
-                        'score': 1 / (1 + dist),
-                        'metadata': meta,
-                        'rank': i
-                    }
-                    combined_results.append(result)
+        standardized = []
 
-        # Sort by score
-        combined_results.sort(key=lambda x: x['score'], reverse=True)
-
-        # Rerank if enabled
-        if rag_config.rerank and self.reranker:
+        for rank, item in enumerate(raw_results, 1):
             try:
-                combined_results = self._rerank_results(query, combined_results)
+                result = self._parse_single_result(item, rank, source_tag)
+                if result:
+                    standardized.append(result)
             except Exception as e:
-                logger.warning(f"Reranking failed in hybrid search: {e}")
+                logger.warning(f"Failed to parse result at rank {rank}: {e}")
+                continue
 
-        # Apply MMR for diversity
-        if len(combined_results) > k:
-            combined_results = self._apply_mmr(query_embedding, combined_results, k)
+        return standardized
 
-        return combined_results[:k]
+    def _parse_single_result(self, item: Any, rank: int,
+                             source_tag: str) -> Optional[Dict]:
+        """Parse a single result item into standard format."""
 
-    def _rerank_results(self, query: str, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Rerank results using cross-encoder"""
-        if not results:
-            return results
+        # Already a dict with expected keys
+        if isinstance(item, dict):
+            return {
+                'id': str(item.get('id', f'result_{rank}')),
+                'score': float(item.get('score', item.get('similarity', 0.0))),
+                'metadata': item.get('metadata', item.get('data', item)),
+                'rank': rank,
+                'source': source_tag,
+            }
 
-        # Prepare pairs for reranking
-        pairs = []
-        for result in results:
-            # Extract text from metadata
-            text = self._extract_text_from_metadata(result['metadata'])
-            pairs.append([query, text])
+        # Tuple: (id, score, metadata) or (id, score)
+        if isinstance(item, (tuple, list)):
+            if len(item) >= 3:
+                return {
+                    'id': str(item[0]),
+                    'score': float(item[1]),
+                    'metadata': item[2] if isinstance(item[2], dict) else {'data': item[2]},
+                    'rank': rank,
+                    'source': source_tag,
+                }
+            elif len(item) == 2:
+                return {
+                    'id': str(item[0]),
+                    'score': float(item[1]) if not isinstance(item[1], str) else 0.0,
+                    'metadata': {},
+                    'rank': rank,
+                    'source': source_tag,
+                }
 
-        # Get reranking scores
-        scores = self.reranker.predict(pairs)
-
-        # Update scores
-        for result, score in zip(results, scores):
-            result['rerank_score'] = float(score)
-            result['original_score'] = result['score']
-            result['score'] = float(score)  # Replace with rerank score
-
-        # Sort by new scores
-        results.sort(key=lambda x: x['score'], reverse=True)
-
-        return results
-
-    def _extract_text_from_metadata(self, metadata: Dict[str, Any]) -> str:
-        """Extract searchable text from metadata"""
-        text_fields = ['content', 'text', 'description', 'name', 'test_code', 'code']
-
-        texts = []
-        for field in text_fields:
-            if field in metadata and metadata[field]:
-                texts.append(str(metadata[field]))
-
-        return ' '.join(texts) if texts else str(metadata)
-
-    def _classify_test_type(self, test_code: str) -> str:
-        """Classify test type from code"""
-        test_code_lower = test_code.lower()
-
-        if 'validation' in test_code_lower or 'invalid' in test_code_lower:
-            return 'validation'
-        elif 'edge' in test_code_lower or 'boundary' in test_code_lower:
-            return 'edge_case'
-        elif 'auth' in test_code_lower or 'unauthorized' in test_code_lower:
-            return 'authentication'
-        elif 'security' in test_code_lower:
-            return 'security'
-        else:
-            return 'functional'
-
-    def _apply_mmr(self, query_embedding: np.ndarray,
-                   results: List[Dict[str, Any]], k: int,
-                   lambda_param: float = 0.5) -> List[Dict[str, Any]]:
-        """
-        Apply Maximal Marginal Relevance for diversity
-
-        Args:
-            query_embedding: Query embedding
-            results: Candidate results
-            k: Number of results to select
-            lambda_param: Trade-off between relevance and diversity (0-1)
-
-        Returns:
-            Diversified results
-        """
-        if len(results) <= k:
-            return results
-
-        selected = []
-        remaining = results.copy()
-
-        # Select first result (highest score)
-        selected.append(remaining.pop(0))
-
-        while len(selected) < k and remaining:
-            mmr_scores = []
-
-            for candidate in remaining:
-                # Relevance score
-                relevance = candidate['score']
-
-                # Diversity score (simplified)
-                diversity = 1.0
-
-                # MMR score
-                mmr = lambda_param * relevance - (1 - lambda_param) * (1 - diversity)
-                mmr_scores.append(mmr)
-
-            # Select best MMR score
-            best_idx = np.argmax(mmr_scores)
-            selected.append(remaining.pop(best_idx))
-
-        return selected
+        # Fallback: wrap as metadata
+        return {
+            'id': f'result_{rank}',
+            'score': 0.0,
+            'metadata': {'data': str(item)},
+            'rank': rank,
+            'source': source_tag,
+        }
