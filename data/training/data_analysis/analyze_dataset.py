@@ -7,7 +7,7 @@ from scipy.stats import skew, kurtosis
 import os
 
 
-def analyze_dataset(file_path='data/training/simplified_tests.json', output_dir='analysis_output'):
+def analyze_dataset(file_path='simplified_tests.json', output_dir='analysis_output'):
     """
     Performs detailed statistical analysis on QASE test data and generates
     visualizations and a Markdown report.

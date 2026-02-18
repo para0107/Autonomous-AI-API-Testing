@@ -14,6 +14,7 @@ numpy>=1.24.0
 
 # Data processing
 pandas>=2.0.0
+seaborn>=0.13.2
 
 # API Testing
 requests>=2.31.0
