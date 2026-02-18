@@ -1,0 +1,327 @@
+2025-10-30 11:23:15 - __main__ - INFO - API Testing Agent - QASE Training Pipeline
+2025-10-30 11:23:15 - __main__ - INFO - Starting automated training process...
+2025-10-30 11:23:15 - __main__ - ERROR - Missing required files: ['QA-Backend-Data.json']
+2025-10-30 11:24:35 - __main__ - INFO - API Testing Agent - QASE Training Pipeline
+2025-10-30 11:24:35 - __main__ - INFO - Starting automated training process...
+2025-10-30 11:24:35 - __main__ - ERROR - Missing required files: ['QA-Backend-Data.json']
+2025-10-30 11:25:22 - __main__ - INFO - API Testing Agent - QASE Training Pipeline
+2025-10-30 11:25:22 - __main__ - INFO - Starting automated training process...
+2025-10-30 11:25:22 - __main__ - INFO - Configuration:
+2025-10-30 11:25:22 - __main__ - INFO -   QASE Files: 1 files
+2025-10-30 11:25:22 - __main__ - INFO -   API URL: https://localhost:7063
+2025-10-30 11:25:22 - __main__ - INFO -   Execute Tests: Yes
+2025-10-30 11:25:27 - __main__ - INFO - ================================================================================
+2025-10-30 11:25:27 - __main__ - INFO - STARTING TRAINING PIPELINE
+2025-10-30 11:25:27 - __main__ - INFO - ================================================================================
+2025-10-30 11:25:27 - __main__ - INFO - 
+STEP 1: Parsing QASE Test Files...
+2025-10-30 11:25:27 - __main__ - INFO - Parsing 1 QASE files...
+2025-10-30 11:25:27 - __main__ - INFO - Parsing QA-Backend-Data.json...
+2025-10-30 11:25:27 - __main__ - INFO - Parsed 320 test patterns
+2025-10-30 11:25:27 - __main__ - INFO - Parsed 156 edge cases
+2025-10-30 11:25:27 - __main__ - INFO - Parsed 10 validation rules
+2025-10-30 11:25:27 - __main__ - INFO - Parsed 386 API patterns
+2025-10-30 11:25:27 - __main__ - INFO - 
+STEP 2: Populating Knowledge Base...
+2025-10-30 11:25:27 - __main__ - INFO - Clearing existing knowledge base...
+2025-10-30 11:25:29 - __main__ - INFO - Added 320 test patterns
+2025-10-30 11:25:31 - __main__ - INFO - Added 156 edge cases
+2025-10-30 11:25:31 - __main__ - INFO - Added 10 validation rules
+2025-10-30 11:25:33 - __main__ - INFO - Added 386 API patterns
+2025-10-30 11:25:33 - __main__ - INFO - 
+STEP 3: Indexing Knowledge with FAISS...
+2025-10-30 11:25:33 - __main__ - INFO - Indexing 320 Test Patterns into 'test_patterns'...
+2025-10-30 11:25:33 - __main__ - INFO - Clearing existing index 'test_patterns'...
+2025-10-30 11:25:34 - __main__ - INFO - Indexed 320 Test Patterns to data/vectors/test_patterns/
+2025-10-30 11:25:34 - __main__ - INFO - Indexing 156 Edge Cases into 'edge_cases'...
+2025-10-30 11:25:34 - __main__ - INFO - Clearing existing index 'edge_cases'...
+2025-10-30 11:25:35 - __main__ - INFO - Indexed 156 Edge Cases to data/vectors/edge_cases/
+2025-10-30 11:25:35 - __main__ - INFO - Indexing 10 Validation Rules into 'validation_rules'...
+2025-10-30 11:25:35 - __main__ - INFO - Clearing existing index 'validation_rules'...
+2025-10-30 11:25:35 - __main__ - INFO - Indexed 10 Validation Rules to data/vectors/validation_rules/
+2025-10-30 11:25:35 - __main__ - INFO - Indexing 386 API Patterns into 'api_specifications'...
+2025-10-30 11:25:35 - __main__ - INFO - Clearing existing index 'api_specifications'...
+2025-10-30 11:25:36 - __main__ - INFO - Indexed 386 API Patterns to data/vectors/api_specifications/
+2025-10-30 11:25:36 - __main__ - INFO - All knowledge indexed successfully
+2025-10-30 11:25:36 - __main__ - INFO - 
+STEP 4: Executing Tests Against API...
+2025-10-30 11:25:36 - __main__ - INFO - Executing 320 tests against https://localhost:7063...
+2025-10-30 11:25:36 - __main__ - INFO - [1/320] FAIL - User entity-Get all users-Succesfull
+2025-10-30 11:25:36 - __main__ - INFO - [2/320] FAIL - User entity-Get by ID-Succesfull
+2025-10-30 11:25:36 - __main__ - INFO - [3/320] FAIL - User-Create with a non-boolean isAdmin value-succe
+2025-10-30 11:25:36 - __main__ - INFO - [4/320] FAIL - User-Create with "space " as first or/and last nam
+2025-10-30 11:25:36 - __main__ - INFO - [5/320] FAIL - User- Create with "space" as license plate(A) - su
+2025-10-30 11:25:36 - __main__ - INFO - [6/320] FAIL - User-id increments correctly-succesfull
+2025-10-30 11:25:36 - __main__ - INFO - [7/320] FAIL - User-create user with multiple last names-successf
+2025-10-30 11:25:36 - __main__ - INFO - [9/320] FAIL - user-delete an user with an id that does not appea
+2025-10-30 11:25:36 - __main__ - INFO - [10/320] FAIL - Key entity-Get All-successful
+2025-10-30 11:25:36 - __main__ - INFO - [11/320] FAIL - Key entity-getbyId-successful
+2025-10-30 11:25:36 - __main__ - INFO - [12/320] FAIL - Key entity-Update-successful
+2025-10-30 11:25:36 - __main__ - INFO - [13/320] FAIL - Key entity-delete-successful
+2025-10-30 11:25:36 - __main__ - INFO - [14/320] FAIL - Key-Delete key that does not exist-successful
+2025-10-30 11:25:36 - __main__ - INFO - [15/320] FAIL - Key-create with less or more than 10 characters-su
+2025-10-30 11:25:36 - __main__ - INFO - [16/320] FAIL - Key-update with a different length of 10 character
+2025-10-30 11:25:36 - __main__ - INFO - [18/320] FAIL - Create key with spaces in serial number-successful
+2025-10-30 11:25:36 - __main__ - INFO - [19/320] FAIL - Update a key with spaces in serial number-successf
+2025-10-30 11:25:36 - __main__ - INFO - [21/320] FAIL - Update a key that contain the same serial number a
+2025-10-30 11:25:36 - __main__ - INFO - [22/320] FAIL - Reservation-Create(for a simple user)-positive-suc
+2025-10-30 11:25:36 - __main__ - INFO - [23/320] FAIL - Reservation-Create(for admin)-positive-successful
+2025-10-30 11:25:36 - __main__ - INFO - [24/320] FAIL - Reservation-getAll-positive-successful
+2025-10-30 11:25:36 - __main__ - INFO - [25/320] FAIL - Make sure that reservation has dates that can be s
+2025-10-30 11:25:36 - __main__ - INFO - [26/320] FAIL - Get by Id-positive-successful
+2025-10-30 11:25:36 - __main__ - INFO - [27/320] FAIL - Update as user-positive-successful
+2025-10-30 11:25:36 - __main__ - INFO - [28/320] FAIL - Patch for license plate-successfully
+2025-10-30 11:25:36 - __main__ - INFO - [29/320] FAIL - Patch for password(containing the old, new and rep
+2025-10-30 11:25:36 - __main__ - INFO - [30/320] FAIL - User-update password-successful
+2025-10-30 11:25:36 - __main__ - INFO - [31/320] FAIL - Unhandled Exception Catch-successful
+2025-10-30 11:25:36 - __main__ - INFO - [32/320] FAIL - Database connection failure-successful
+2025-10-30 11:25:36 - __main__ - INFO - [33/320] FAIL - Create logging-ok-successful
+2025-10-30 11:25:36 - __main__ - INFO - [34/320] FAIL - Update logging-ok-successful
+2025-10-30 11:25:36 - __main__ - INFO - [35/320] FAIL - Get All logging-ok-successful
+2025-10-30 11:25:36 - __main__ - INFO - [36/320] FAIL - Get by Id logging-ok-successful
+2025-10-30 11:25:36 - __main__ - INFO - [37/320] FAIL - Delete logging-ok-successful
+2025-10-30 11:25:36 - __main__ - INFO - [38/320] FAIL - Create logging-bad request-successful
+2025-10-30 11:25:36 - __main__ - INFO - [41/320] PASS - Delete logging-bad request-successful
+2025-10-30 11:25:36 - __main__ - INFO - [42/320] FAIL - Valid token signature-successful
+2025-10-30 11:25:36 - __main__ - INFO - [43/320] FAIL - Token missing part-successful
+2025-10-30 11:25:36 - __main__ - INFO - [44/320] FAIL - Admin can assign key to other user-positive-succes
+2025-10-30 11:25:36 - __main__ - INFO - [45/320] FAIL - Admin can see what keys are assigned-positive-succ
+2025-10-30 11:25:36 - __main__ - INFO - [46/320] FAIL - Admin can see what keys are unassigned-positive-su
+2025-10-30 11:25:36 - __main__ - INFO - [47/320] FAIL - Admin can see what users have assigned keys-positi
+2025-10-30 11:25:36 - __main__ - INFO - [48/320] FAIL - Admin can see what users do not have assigned keys
+2025-10-30 11:25:36 - __main__ - INFO - [49/320] FAIL - Admin can see information about keys (and implicit
+2025-10-30 11:25:36 - __main__ - INFO - [50/320] FAIL - Admin assigns different keys to multiple users -po
+2025-10-30 11:25:36 - __main__ - INFO - [51/320] FAIL - Admin assigns to same user multiple keys (should r
+2025-10-30 11:25:36 - __main__ - INFO - [52/320] FAIL - Admin assigns an assigned key to another user that
+2025-10-30 11:25:36 - __main__ - INFO - [55/320] FAIL - Get all keys-successful
+2025-10-30 11:25:36 - __main__ - INFO - [56/320] FAIL - Create key-successful
+2025-10-30 11:25:36 - __main__ - INFO - [57/320] FAIL - Search key by ID--successful
+2025-10-30 11:25:36 - __main__ - INFO - [58/320] FAIL - Update the serial number of a key-successful
+2025-10-30 11:25:36 - __main__ - INFO - [59/320] FAIL - Create user-successful
+2025-10-30 11:25:36 - __main__ - INFO - [60/320] FAIL - Get user by Id-successful
+2025-10-30 11:25:36 - __main__ - INFO - [61/320] FAIL - Update user by first-name-successful
+2025-10-30 11:25:36 - __main__ - INFO - [62/320] FAIL - Update user by last-name-successful
+2025-10-30 11:25:36 - __main__ - INFO - [63/320] FAIL - Update user by license plate-successful
+2025-10-30 11:25:36 - __main__ - INFO - [64/320] FAIL - Update user by password-successful
+2025-10-30 11:25:36 - __main__ - INFO - [65/320] FAIL - Get all keys-successful
+2025-10-30 11:25:36 - __main__ - INFO - [66/320] FAIL - Create key-successful
+2025-10-30 11:25:36 - __main__ - INFO - [67/320] FAIL - Search key by ID-successful
+2025-10-30 11:25:36 - __main__ - INFO - [68/320] FAIL - Update the serial number of a key-successful
+2025-10-30 11:25:36 - __main__ - INFO - [69/320] FAIL - Get all users-successful
+2025-10-30 11:25:36 - __main__ - INFO - [70/320] FAIL - Create user-successful
+2025-10-30 11:25:36 - __main__ - INFO - [71/320] FAIL - Get other user by Id-successful
+2025-10-30 11:25:36 - __main__ - INFO - [72/320] FAIL - Update other user by first-name-successful
+2025-10-30 11:25:36 - __main__ - INFO - [73/320] FAIL - Update other user by last-name-successful
+2025-10-30 11:25:36 - __main__ - INFO - [74/320] FAIL - Update other user by license plate-successful
+2025-10-30 11:25:36 - __main__ - INFO - [75/320] FAIL - Update other user by password-successful
+2025-10-30 11:25:36 - __main__ - INFO - [76/320] FAIL - Delete user-successful
+2025-10-30 11:25:36 - __main__ - INFO - [77/320] FAIL - Get itself by id-successful
+2025-10-30 11:25:36 - __main__ - INFO - [78/320] FAIL - Update itself by first-name-successful
+2025-10-30 11:25:36 - __main__ - INFO - [79/320] FAIL - Update itself by last-name-successful
+2025-10-30 11:25:36 - __main__ - INFO - [80/320] FAIL - Update itself by license plate-successful
+2025-10-30 11:25:36 - __main__ - INFO - [81/320] FAIL - Update user by password-successful
+2025-10-30 11:25:36 - __main__ - INFO - [82/320] FAIL - Log in-positive-successful
+2025-10-30 11:25:36 - __main__ - INFO - [83/320] FAIL - Create a reservation-admin-positive-successful
+2025-10-30 11:25:36 - __main__ - INFO - [84/320] FAIL - Create a reservation-user-positive-successful
+2025-10-30 11:25:36 - __main__ - INFO - [85/320] FAIL - Create multiple reservations on same date-admin-po
+2025-10-30 11:25:36 - __main__ - INFO - [86/320] FAIL - Create a reservation on dates that include full da
+2025-10-30 11:25:36 - __main__ - INFO - [87/320] FAIL - Get avaliable dates for himself-admin- positive-su
+2025-10-30 11:25:36 - __main__ - INFO - [88/320] FAIL - Get avaliable dates for himself-user-positive-succ
+2025-10-30 11:25:36 - __main__ - INFO - [89/320] FAIL - Get avaliable dates for other user-admin-positive-
+2025-10-30 11:25:36 - __main__ - INFO - [90/320] FAIL - Get avaliable dates if one period is reserved and 
+2025-10-30 11:25:36 - __main__ - INFO - [91/320] FAIL - Get avaliable dates if multiple dates are full - a
+2025-10-30 11:25:36 - __main__ - INFO - [92/320] FAIL - Get Reservations of user-positive-task Alexandra-s
+2025-10-30 11:25:36 - __main__ - INFO - [93/320] FAIL - Reservation dates have proper format-successful
+2025-10-30 11:25:36 - __main__ - INFO - [94/320] FAIL - Reservations grouped by month-successful
+2025-10-30 11:25:36 - __main__ - INFO - [95/320] FAIL - Get reservations for user without reservations(A)-
+2025-10-30 11:25:36 - __main__ - INFO - [96/320] FAIL - See all reservations-successful
+2025-10-30 11:25:36 - __main__ - INFO - [97/320] FAIL - Create a valid reservation for himself-successful
+2025-10-30 11:25:36 - __main__ - INFO - [98/320] FAIL - See his reservation by id-successful
+2025-10-30 11:25:36 - __main__ - INFO - [99/320] FAIL - Update a reservation's dates that belongs to himse
+2025-10-30 11:25:36 - __main__ - INFO - [100/320] FAIL - Delete his own reservation by id-successful
+2025-10-30 11:25:36 - __main__ - INFO - [101/320] FAIL - Get all reservations made by himself-successful
+2025-10-30 11:25:36 - __main__ - INFO - [102/320] FAIL - Get all avaliable dates for any user-successful
+2025-10-30 11:25:36 - __main__ - INFO - [103/320] FAIL - Create a valid reservation for other user-successf
+2025-10-30 11:25:36 - __main__ - INFO - [104/320] FAIL - Get all reservations from other user-successful
+2025-10-30 11:25:36 - __main__ - INFO - [105/320] FAIL - Delete another user's reservation-successful
+2025-10-30 11:25:36 - __main__ - INFO - [106/320] FAIL - Update a reservation that belong to other user-suc
+2025-10-30 11:25:36 - __main__ - INFO - [107/320] FAIL - Get all available dates for himself-successful
+2025-10-30 11:25:36 - __main__ - INFO - [108/320] FAIL - Create a valid reservation-successful
+2025-10-30 11:25:36 - __main__ - INFO - [109/320] FAIL - Delete his own reservation-successful
+2025-10-30 11:25:36 - __main__ - INFO - [110/320] FAIL - Get his own reservations-successful
+2025-10-30 11:25:36 - __main__ - INFO - [111/320] FAIL - Get all aviable dates for himself-successful
+2025-10-30 11:25:36 - __main__ - INFO - [112/320] FAIL - Update his own reservation-successful
+2025-10-30 11:25:36 - __main__ - INFO - [113/320] FAIL - Get all reservations-successful
+2025-10-30 11:25:36 - __main__ - INFO - [114/320] FAIL - Create a reservation that is not for himself-succe
+2025-10-30 11:25:36 - __main__ - INFO - [115/320] FAIL - Get any reservation by id-successful
+2025-10-30 11:25:36 - __main__ - INFO - [116/320] FAIL - Update any reservation(not his)(found by id)-succe
+2025-10-30 11:25:36 - __main__ - INFO - [117/320] FAIL - Get all reservations from any other user-successfu
+2025-10-30 11:25:36 - __main__ - INFO - [118/320] FAIL - Get all avaliable dates from any user-successful
+2025-10-30 11:25:36 - __main__ - INFO - [119/320] FAIL - Get all reservations-successful
+2025-10-30 11:25:36 - __main__ - INFO - [120/320] FAIL - Create a reservation-successful
+2025-10-30 11:25:36 - __main__ - INFO - [121/320] FAIL - Get any reservation by id-successful
+2025-10-30 11:25:36 - __main__ - INFO - [122/320] FAIL - Update any reservations-successful
+2025-10-30 11:25:36 - __main__ - INFO - [123/320] FAIL - Delete any reservation-successful
+2025-10-30 11:25:36 - __main__ - INFO - [124/320] FAIL - Get all reservations from any user-successful
+2025-10-30 11:25:36 - __main__ - INFO - [125/320] FAIL - Get all available dates from any user-successful
+2025-10-30 11:25:36 - __main__ - INFO - [126/320] FAIL - Get all keys-successful
+2025-10-30 11:25:36 - __main__ - INFO - [127/320] FAIL - Create a new key-successful
+2025-10-30 11:25:36 - __main__ - INFO - [128/320] FAIL - Get any key by Id-successful
+2025-10-30 11:25:36 - __main__ - INFO - [129/320] FAIL - Update any key-successful
+2025-10-30 11:25:36 - __main__ - INFO - [130/320] FAIL - Delete any key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [131/320] FAIL - Get all keys-successful
+2025-10-30 11:25:37 - __main__ - INFO - [132/320] FAIL - Create a new key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [133/320] FAIL - Update any key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [134/320] FAIL - Delete any key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [135/320] FAIL - Get any user key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [136/320] FAIL - Get all keys-successful
+2025-10-30 11:25:37 - __main__ - INFO - [137/320] FAIL - Create new key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [138/320] FAIL - Get any key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [139/320] FAIL - Update any key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [140/320] FAIL - Delete any key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [141/320] FAIL - Retrieve all users sorted by ownership of a key-su
+2025-10-30 11:25:37 - __main__ - INFO - [142/320] FAIL - Export as admin-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - [143/320] FAIL - Retrieve history of a specified key-successful
+2025-10-30 11:25:37 - __main__ - INFO - [144/320] FAIL - History of a key grouping-successful
+2025-10-30 11:25:37 - __main__ - INFO - [145/320] FAIL - User’s full name is displayed-successful
+2025-10-30 11:25:37 - __main__ - INFO - [146/320] FAIL - email sent to a new created user-successful
+2025-10-30 11:25:37 - __main__ - INFO - [147/320] FAIL - Send reservation data to admin-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - [148/320] FAIL - Email format for the new user is correct-successfu
+2025-10-30 11:25:37 - __main__ - INFO - [149/320] FAIL - Email is sent on same adress as the adress of the 
+2025-10-30 11:25:37 - __main__ - INFO - [150/320] FAIL - Deleting an user also deletes his reservations-suc
+2025-10-30 11:25:37 - __main__ - INFO - [151/320] FAIL - Deleting an user also unassignes his key-successfu
+2025-10-30 11:25:37 - __main__ - INFO - [152/320] FAIL - Get all no. of reservations for a year when there 
+2025-10-30 11:25:37 - __main__ - INFO - [153/320] FAIL - Get all no. of reservations for the logged in admi
+2025-10-30 11:25:37 - __main__ - INFO - [154/320] FAIL - Get all no. of reservations for other user(logged 
+2025-10-30 11:25:37 - __main__ - INFO - [155/320] FAIL - Data returned is correctly displayed(grouped by mo
+2025-10-30 11:25:37 - __main__ - INFO - [156/320] FAIL - If no user is selected , all reservation data is d
+2025-10-30 11:25:37 - __main__ - INFO - [157/320] FAIL - Number of reservations is correctly displayed)-pos
+2025-10-30 11:25:37 - __main__ - INFO - [158/320] FAIL - Get no.of reservations for the current user logged
+2025-10-30 11:25:37 - __main__ - INFO - [159/320] FAIL - Admin sees his number of reservations for last mon
+2025-10-30 11:25:37 - __main__ - INFO - [160/320] FAIL - Admin sees other user's number of reservations for
+2025-10-30 11:25:37 - __main__ - INFO - [161/320] FAIL - User sees his number of reservations for last mont
+2025-10-30 11:25:37 - __main__ - INFO - [162/320] FAIL - No reservation in last month for user-positive-suc
+2025-10-30 11:25:37 - __main__ - INFO - [163/320] FAIL - User has a reservation on multiple days in the las
+2025-10-30 11:25:37 - __main__ - INFO - [164/320] FAIL - User has a reservation that started earlier than 3
+2025-10-30 11:25:37 - __main__ - INFO - [165/320] FAIL - User has a reservation that started earlier than 3
+2025-10-30 11:25:37 - __main__ - INFO - [166/320] FAIL - User has a reservation that started later than 30 
+2025-10-30 11:25:37 - __main__ - INFO - [167/320] FAIL - Admin has more reservations that intercalates with
+2025-10-30 11:25:37 - __main__ - INFO - [168/320] FAIL - Admin has a reservation that ends today(should not
+2025-10-30 11:25:37 - __main__ - INFO - [169/320] FAIL - User has reservation that starts in the last 30 da
+2025-10-30 11:25:37 - __main__ - INFO - [170/320] FAIL - Admin has a reservation that ends exactly 30 days 
+2025-10-30 11:25:37 - __main__ - INFO - [171/320] FAIL - Admin has a reservation that starts exactly 30 day
+2025-10-30 11:25:37 - __main__ - INFO - [172/320] FAIL - No user id and no date range- all no. of reservati
+2025-10-30 11:25:37 - __main__ - INFO - [173/320] FAIL - No user id and data range selected-all no. of rese
+2025-10-30 11:25:37 - __main__ - INFO - [174/320] FAIL - Data is correctly displayed: no. of reservations f
+2025-10-30 11:25:37 - __main__ - INFO - [175/320] FAIL - Admin can see no.of reservations  for each user-po
+2025-10-30 11:25:37 - __main__ - INFO - [176/320] FAIL - Admin can see no.of reservations for himself-posit
+2025-10-30 11:25:37 - __main__ - INFO - [177/320] FAIL - User can see no. of reservations for himself-posit
+2025-10-30 11:25:37 - __main__ - INFO - [178/320] FAIL - There are reservations outside the selected period
+2025-10-30 11:25:37 - __main__ - INFO - [179/320] FAIL - Added year and month parameters-positive-successfu
+2025-10-30 11:25:37 - __main__ - INFO - [180/320] FAIL - Data about reservation is correctly filtered-posit
+2025-10-30 11:25:37 - __main__ - INFO - [181/320] FAIL - Admin can request data-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - [182/320] FAIL - Data about reservations is still correctly display
+2025-10-30 11:25:37 - __main__ - INFO - [183/320] FAIL - Admin receives the data file on the same email tha
+2025-10-30 11:25:37 - __main__ - INFO - [184/320] FAIL - Data about reservations is correctly taken from th
+2025-10-30 11:25:37 - __main__ - INFO - [185/320] FAIL - No range is selected-default value-today-positive-
+2025-10-30 11:25:37 - __main__ - INFO - [186/320] FAIL - Admin can see all users' reservations-positive-suc
+2025-10-30 11:25:37 - __main__ - INFO - [187/320] FAIL - Admin can see one user's reservations-positive-suc
+2025-10-30 11:25:37 - __main__ - INFO - [188/320] FAIL - Reservations are correctly displayed from the sele
+2025-10-30 11:25:37 - __main__ - INFO - [189/320] FAIL - A range with no reservations is entered-positive-s
+2025-10-30 11:25:37 - __main__ - INFO - [190/320] FAIL - Logging in as admin and having all the admin privi
+2025-10-30 11:25:37 - __main__ - INFO - [191/320] FAIL - Logging in as user and having all the user privile
+2025-10-30 11:25:37 - __main__ - INFO - [192/320] FAIL - Create an account and then log in with the new acc
+2025-10-30 11:25:37 - __main__ - INFO - [193/320] FAIL - Users with microsoft account can log in as regular
+2025-10-30 11:25:37 - __main__ - INFO - [194/320] FAIL - Being logged in using Microsoft behaves the same a
+2025-10-30 11:25:37 - __main__ - INFO - [195/320] FAIL - Default values-Page==1&&size==5-positive-successfu
+2025-10-30 11:25:37 - __main__ - INFO - [196/320] FAIL - Admin can call this endpoint-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - [197/320] FAIL - Being on last page, number of users <= size value-
+2025-10-30 11:25:37 - __main__ - INFO - [198/320] FAIL - Number of pages is correctly calculated(based on n
+2025-10-30 11:25:37 - __main__ - INFO - [199/320] FAIL - Number of users on a page(not last one) correspond
+2025-10-30 11:25:37 - __main__ - INFO - [200/320] FAIL - Valid values for size and page returns correct dat
+2025-10-30 11:25:37 - __main__ - INFO - [201/320] FAIL - Users are sorted by the userId(increasing)-positiv
+2025-10-30 11:25:37 - __main__ - INFO - [202/320] FAIL - Page==1 and size value is chosen such that there i
+2025-10-30 11:25:37 - __main__ - INFO - [203/320] FAIL - On the page after the last one, there should be no
+2025-10-30 11:25:37 - __main__ - INFO - [204/320] FAIL - Default values-Page==1&&size==5-positive-successfu
+2025-10-30 11:25:37 - __main__ - INFO - [205/320] FAIL - Admin can call this endpoint-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - [206/320] FAIL - Being on last page, number of users <= size value-
+2025-10-30 11:25:37 - __main__ - INFO - [207/320] FAIL - Number of pages is correctly calculated(based on n
+2025-10-30 11:25:37 - __main__ - INFO - [208/320] FAIL - Number of users on a page(not last one) correspond
+2025-10-30 11:25:37 - __main__ - INFO - [209/320] FAIL - Valid values for size and page returns correct dat
+2025-10-30 11:25:37 - __main__ - INFO - [210/320] FAIL - Page==1 and size value is chosen such that there i
+2025-10-30 11:25:37 - __main__ - INFO - [211/320] FAIL - On the page after the last one, there should be no
+2025-10-30 11:25:37 - __main__ - INFO - [212/320] FAIL - Users are grouped by having key or not-positive-su
+2025-10-30 11:25:37 - __main__ - INFO - [213/320] FAIL - Users, after being grouped, are sorted by reserved
+2025-10-30 11:25:37 - __main__ - INFO - [214/320] FAIL - Default values-Page==1&&size==5-positive-successfu
+2025-10-30 11:25:37 - __main__ - INFO - [215/320] FAIL - Admin can call this endpoint-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - [216/320] FAIL - User can call this endpoint for himself-positive-s
+2025-10-30 11:25:37 - __main__ - INFO - [217/320] FAIL - Being on last page, number of reservations <= size
+2025-10-30 11:25:37 - __main__ - INFO - [218/320] FAIL - Number of pages is correctly calculated(based on n
+2025-10-30 11:25:37 - __main__ - INFO - [219/320] FAIL - Number of reservations on a page(not last one) cor
+2025-10-30 11:25:37 - __main__ - INFO - [220/320] FAIL - Valid values for size and page returns correct dat
+2025-10-30 11:25:37 - __main__ - INFO - [221/320] FAIL - Page==1 and size value is chosen such that there i
+2025-10-30 11:25:37 - __main__ - INFO - [222/320] FAIL - On the page after the last one, there should be no
+2025-10-30 11:25:37 - __main__ - INFO - [223/320] FAIL - Reservations are correctly grouped by past-positiv
+2025-10-30 11:25:37 - __main__ - INFO - [224/320] FAIL - Reservations are correctly grouped by month-positi
+2025-10-30 11:25:37 - __main__ - INFO - [225/320] FAIL - Reservations are correctly sorted cronologically(i
+2025-10-30 11:25:37 - __main__ - INFO - [226/320] FAIL - Default values-Page==1&&size==5-positive-successfu
+2025-10-30 11:25:37 - __main__ - INFO - [227/320] FAIL - Admin can call this endpoint-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - [228/320] FAIL - Being on last page, number of keys <= size value-p
+2025-10-30 11:25:37 - __main__ - INFO - [229/320] FAIL - Number of pages is correctly calculated(based on n
+2025-10-30 11:25:37 - __main__ - INFO - [230/320] FAIL - Number of keys on a page(not last one) corresponds
+2025-10-30 11:25:37 - __main__ - INFO - [231/320] FAIL - Valid values for size and page returns correct dat
+2025-10-30 11:25:37 - __main__ - INFO - [232/320] FAIL - Keys are sorted by the keyId(increasing)-positive-
+2025-10-30 11:25:37 - __main__ - INFO - [233/320] FAIL - Page==1 and size value is chosen such that there i
+2025-10-30 11:25:37 - __main__ - INFO - [234/320] FAIL - On the page after the last one, there should be no
+2025-10-30 11:25:37 - __main__ - INFO - [235/320] FAIL - Keys are grouped by being assigned or not-positive
+2025-10-30 11:25:37 - __main__ - INFO - [236/320] FAIL - Default values-Page==1&&size==5-positive-successfu
+2025-10-30 11:25:37 - __main__ - INFO - [237/320] FAIL - Admin can call this endpoint-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - [238/320] FAIL - Being on last page, number of actions of keys <= s
+2025-10-30 11:25:37 - __main__ - INFO - [239/320] FAIL - Number of pages is correctly calculated(based on n
+2025-10-30 11:25:37 - __main__ - INFO - [240/320] FAIL - Number of key actions on a page(not last one) corr
+2025-10-30 11:25:37 - __main__ - INFO - [241/320] FAIL - Valid values for size and page returns correct dat
+2025-10-30 11:25:37 - __main__ - INFO - [242/320] FAIL - Page==1 and size value is chosen such that there i
+2025-10-30 11:25:37 - __main__ - INFO - [243/320] FAIL - On the page after the last one, there should be no
+2025-10-30 11:25:37 - __main__ - INFO - [244/320] FAIL - Key actions are ordered cronologically(decreasing)
+2025-10-30 11:25:37 - __main__ - INFO - [245/320] FAIL - Key actions are grouped by month-positive-successf
+2025-10-30 11:25:37 - __main__ - INFO - [246/320] FAIL - Verify some keys are assigned and some are not ass
+2025-10-30 11:25:37 - __main__ - INFO - [247/320] FAIL - Verify PreviousHolder exists in userId-positive
+2025-10-30 11:25:37 - __main__ - INFO - [248/320] FAIL - Verify CurrentHolderId exists in userId-positive
+2025-10-30 11:25:37 - __main__ - INFO - [249/320] FAIL - Verify ActionMakerId exists in userId-positive
+2025-10-30 11:25:37 - __main__ - INFO - [250/320] FAIL - Emails are generated according to the regex-user-p
+2025-10-30 11:25:37 - __main__ - INFO - [251/320] FAIL - FirstName generated according to the regex-user-po
+2025-10-30 11:25:37 - __main__ - INFO - [252/320] FAIL - LastName are generated according to the regex-user
+2025-10-30 11:25:37 - __main__ - INFO - [253/320] FAIL - Verify that keyactions are generated according to 
+2025-10-30 11:25:37 - __main__ - INFO - [254/320] FAIL - Reservation export-positive-successful
+2025-10-30 11:25:37 - __main__ - INFO - 
+Execution Results:
+2025-10-30 11:25:37 - __main__ - INFO -    Total Tests: 254
+2025-10-30 11:25:37 - __main__ - INFO -    Passed: 8 (3.1%)
+2025-10-30 11:25:37 - __main__ - INFO -    Failed: 246
+2025-10-30 11:25:37 - __main__ - INFO - 
+STEP 5: Training RL Model...
+2025-10-30 11:25:37 - __main__ - INFO - Creating training experiences...
+2025-10-30 11:25:37 - __main__ - INFO - Clearing existing experience buffer...
+2025-10-30 11:25:37 - __main__ - INFO - Created 254 training experiences
+2025-10-30 11:25:37 - __main__ - INFO - Training RL model...
+2025-10-30 11:25:41 - __main__ - INFO - RL training completed
+2025-10-30 11:25:41 - __main__ - INFO - 
+STEP 6: Saving Training Results...
+2025-10-30 11:25:41 - __main__ - INFO - Knowledge base saved to: C:\Facultate\Licenta\api-testing-agent-github\data\knowledge_base\knowledge_export_20251030_112541.json
+2025-10-30 11:25:41 - __main__ - INFO - Vector indices saved to: C:\Facultate\Licenta\api-testing-agent-github\data\vectors
+2025-10-30 11:25:41 - __main__ - INFO - Training data saved to: C:\Facultate\Licenta\api-testing-agent-github\data\training\qase_training_data.json
+2025-10-30 11:25:41 - __main__ - INFO - RL model saved to: C:\Facultate\Licenta\api-testing-agent-github\data\models\rl_qase_trained.pth
+2025-10-30 11:25:41 - __main__ - INFO - 
+================================================================================
+2025-10-30 11:25:41 - __main__ - INFO - TRAINING COMPLETED SUCCESSFULLY
+2025-10-30 11:25:41 - __main__ - INFO - ================================================================================
+2025-10-30 11:25:41 - __main__ - INFO - 
+================================================================================
+2025-10-30 11:25:41 - __main__ - INFO - TRAINING COMPLETE
+2025-10-30 11:25:41 - __main__ - INFO - ================================================================================
+2025-10-30 11:25:41 - __main__ - INFO - 
+Next steps:
+2025-10-30 11:25:41 - __main__ - INFO -    1. Verify training: Check data/vectors/ and data/knowledge_base/
+2025-10-30 11:25:41 - __main__ - INFO -    2. Test retrieval: Search for similar patterns in knowledge base
+2025-10-30 11:25:41 - __main__ - INFO -    3. Generate tests: Run main.py with your API code
+2025-10-30 11:25:41 - __main__ - INFO - ================================================================================

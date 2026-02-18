@@ -1,0 +1,4 @@
+# Ignore the embedding cache directory and all files inside it
+embedding_cache/
+.env
+data
