@@ -42,7 +42,7 @@ def simplify_qase_export(input_file, output_file):
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(simplified_tests, f, indent=2, ensure_ascii=False)
 
-    print(f"✅ Successfully extracted {len(simplified_tests)} tests to '{output_file}'")
+    print(f" Successfully extracted {len(simplified_tests)} tests to '{output_file}'")
 
 
 # usage
