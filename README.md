@@ -821,9 +821,9 @@ Multi-agent system using Llama 3.2 via LM Studio for specialized testing tasks.
 Client for interacting with Llama 3.2 via LM Studio.
 
 **Connection:**
-- Base URL: `http://127.0.0.1:1234/v1` (LM Studio local server)
+- Base URL: `llama-3.3-70b-versatile`
 - Compatible with OpenAI API format
-- No API key required
+-  API key required
 
 **Async Context Manager:**
 
@@ -1658,8 +1658,8 @@ Autonomous-AI-API-Testing/
 Create `.env` file:
 ```env
 # LM Studio
-LLAMA_BASE_URL=http://127.0.0.1:1234/v1
-LLAMA_MODEL=llama-3.2-3b-instruct
+LLAMA_BASE_URL=https://api.groq.com/openai/v1
+LLAMA_MODEL=llama-3.3-70b-versatile
 
 # Application
 DEBUG=False
