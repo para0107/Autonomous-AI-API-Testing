@@ -57,7 +57,7 @@ class RLEvaluator:
             state = extract_state([test_case], api_spec, [], None)
 
             # Get action from the optimizer
-            action = await self.optimizer.select_action(state)
+            action = await self.optimizer.get_action(state)
 
             results.append({
                 'test_case_index': i,

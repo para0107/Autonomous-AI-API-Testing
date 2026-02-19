@@ -2,6 +2,7 @@
 LLM Orchestrator - Single source of truth for LLM agent coordination.
 
 Fixes:
+- LlamaClient uses __aenter__/__aexit__ (async context manager), NOT initialize()/close()
 - Uses AgentManager internally (no dual orchestration path)
 - Properly passes llama_client to AgentManager
 - Consistent async context manager
@@ -30,15 +31,17 @@ class LlamaOrchestrator:
 
     async def __aenter__(self):
         """Initialize client and agents."""
-        await self.client.initialize()
+        # FIX: LlamaClient uses __aenter__, not initialize()
+        await self.client.__aenter__()
         # FIX: Pass the client so agents can actually use the LLM
         self.agent_manager = AgentManager(llama_client=self.client)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Clean up."""
+        # FIX: LlamaClient uses __aexit__, not close()
         if self.client:
-            await self.client.close()
+            await self.client.__aexit__(exc_type, exc_val, exc_tb)
 
     async def generate_test_suite(self, api_spec: Dict[str, Any],
                                   context: Dict[str, Any],

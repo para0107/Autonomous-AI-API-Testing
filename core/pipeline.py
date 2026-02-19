@@ -230,14 +230,14 @@ class TestGenerationPipeline:
 
             for key, retriever_method in retrieval_map.items():
                 try:
-                    results = await retriever_method(embeddings, k=10)
+                    results = await retriever_method(query_embedding=embeddings, k=10)  # ← FIXED
                     if results:
                         context[key] = results
-                        logger.info(f"Retrieved {len(results)} {key} from RAG")
+                        logger.info(f"Retrieved {len(results)} {key}")
                     else:
-                        logger.warning(f"No {key} found in RAG")
+                        logger.warning(f"No {key} found")
                 except Exception as e:
-                    logger.warning(f"{key} retrieval failed: {e}")
+                    logger.warning(f"Retrieval for {key} failed: {e}")
 
         except Exception as e:
             logger.error(f"RAG retrieval failed: {e}", exc_info=True)

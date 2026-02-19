@@ -1,3 +1,5 @@
+>  **Continuation from:** [github.com/para0107/api-testing-agent](https://github.com/para0107/api-testing-agent)
+
 # API Testing Agent - Comprehensive Technical Documentation
 
 ## Table of Contents
@@ -159,15 +161,15 @@ vector_dir = paths.VECTOR_STORE_DIR
 ```
 
 ### **llama_config.py**
-Configuration for Llama 3.2 LLM via LM Studio.
+Configuration for Llama 3.2 LLM via Groq
 
 **LlamaConfig Class:**
 ```python
 @dataclass
 class LlamaConfig:
-    base_url: str = "http://127.0.0.1:1234/v1"
-    api_key: str = "not-needed"
-    model_name: str = "llama-3.2-3b-instruct"
+    base_url: str = "https://api.groq.com/openai/v1"
+    api_key: str = ".env file"
+    model_name: str = "llama-3.3-70b-versatile"
     
     # Generation parameters
     temperature: float = 0.7
@@ -270,12 +272,13 @@ class RLConfig:
     prioritized_replay: bool = True
 ```
 
-**State Space Dimensions:**
-- `api_complexity`: 128 features
-- `test_coverage`: 64 features
-- `historical_bugs`: 256 features
-- `execution_results`: 128 features
-- `parameter_space`: 64 features
+**State Space (TOTAL_STATE_DIM = 64):**
+
+The state vector is a compact 64-dimensional representation built from:
+- API complexity features (endpoint metadata, parameter counts, types)
+- Test coverage features (test type distribution, assertion coverage)
+- Historical performance features (past bug patterns, failure rates)
+- Current test set features (diversity, complexity, priority scores)
 
 **Action Types (Test Categories):**
 - `happy_path`, `boundary_value`, `null_empty`, `type_mismatch`
@@ -435,21 +438,6 @@ patterns = {
 **JavaParser Class:**
 Parses Spring Boot and JAX-RS API code.
 
-**Regex Patterns:**
-```python
-patterns = {
-    'rest_controller': r'@RestController',
-    'request_mapping': r'@RequestMapping\([\'"]([^\'"]+)[\'"]\)',
-    'get_mapping': r'@GetMapping(?:\([\'"]([^\'"]*)[\'"].*?\))?',
-    'post_mapping': r'@PostMapping(?:\([\'"]([^\'"]*)[\'"].*?\))?',
-    'path_variable': r'@PathVariable(?:\([\'"](\w+)[\'"\)])?\s+(\w+)\s+(\w+)',
-    'request_param': r'@RequestParam(?:\([\'"](\w+)[\'"].*?\))?\s+(\w+)\s+(\w+)',
-    'request_body': r'@RequestBody\s+(\w+)\s+(\w+)',
-    'autowired': r'@Autowired\s+(?:private\s+)?(\w+)\s+(\w+)',
-    'validation': r'@(NotNull|NotEmpty|NotBlank|Size|Min|Max|Pattern|Email)'
-}
-```
-
 **Key Features:**
 - Detects `@RestController` and `@Controller` annotations
 - Parses Spring Boot mapping annotations (`@GetMapping`, `@PostMapping`, etc.)
@@ -476,42 +464,11 @@ Parses Flask, FastAPI, and Django API code using AST.
 - FastAPI: `from fastapi import` or `@app.get`
 - Django: `from django` or `path()`
 
-**AST Parsing:**
-```python
-def parse_ast(tree: ast.AST, source_code: str):
-    # Walks AST nodes
-    # ClassDef → parse_class()
-    # FunctionDef/AsyncFunctionDef → parse_function()
-    # Import/ImportFrom → parse_import()
-```
-
 **Key Methods:**
-
-1. **extract_flask_endpoints(code: str)**
-   - Pattern: `@app.route('/path', methods=['GET', 'POST'])`
-   - Extracts route path, HTTP methods, function signature
-   - Parses function parameters
-
-2. **extract_fastapi_endpoints(code: str)**
-   - Pattern: `@app.get('/path')` or `@router.post('/path')`
-   - Parses type-hinted parameters: `param: str = Query(...)`
-   - Identifies parameter sources: `Query()`, `Path()`, `Body()`, `Header()`
-   - Handles async functions
-
-3. **extract_models(code: str)**
-   - Pydantic: `class Model(BaseModel):`
-   - Dataclasses: `@dataclass class Model:`
-   - Extracts field annotations, defaults, Field() definitions
-   - Parses Pydantic validators (`@validator`, `@root_validator`)
-
-4. **extract_validation_rules(code: str)**
-   - Pydantic Field() parameters: `min_length`, `max_length`, `ge`, `le`, `regex`
-   - Custom validators with `@validator` decorator
-   - Returns structured validation rules
-
-**Type Hint Parsing:**
-- Handles complex types: `Optional[str]`, `List[int]`, `Dict[str, Any]`
-- Extracts default values and required/optional status
+1. **extract_flask_endpoints(code)**: Parses `@app.route` decorators
+2. **extract_fastapi_endpoints(code)**: Parses `@app.get`/`@router.post` decorators with type hints
+3. **extract_models(code)**: Extracts Pydantic and dataclass models
+4. **extract_validation_rules(code)**: Extracts Pydantic Field() parameters and `@validator` decorators
 
 ### **parsers/cpp_parser.py**
 
@@ -524,91 +481,19 @@ Parses C++ REST frameworks (Crow, Pistache, Restbed, C++ REST SDK).
 - **Restbed**: `resource->set_path("/path")`
 - **cpprest**: `listener.support(methods::GET, "/path")`
 
-**Framework Detection:**
-```python
-def detect_framework(code: str):
-    if 'crow.h' or 'CROW_ROUTE' in code: return 'crow'
-    elif 'pistache' in code: return 'pistache'
-    elif 'restbed' in code: return 'restbed'
-    elif 'cpprest' or 'http_listener' in code: return 'cpprest'
-```
-
-**Key Challenges:**
-- Template metaprogramming syntax
-- Nested angle brackets in type definitions
-- Manual string parsing (no standard C++ parser)
-
-**Methods:**
-- `split_parameters(params_str)`: Handles nested templates in parameter lists
-- `extract_class_members(code, class_name)`: Parses public/private/protected sections
-- `extract_structs(code)`: Extracts POD structs for data models
-
 ### **endpoint_extractor.py**
 
 **EndpointExtractor Class:**
 Normalizes endpoints across different languages to unified format.
 
 **Key Methods:**
-
-1. **normalize_endpoint(endpoint: Dict) -> Dict**
-   - Standardizes field names across languages
-   - Maps language-specific terms to OpenAPI equivalents
-   - Returns unified structure:
-```python
-{
-    'path': '/api/users/{id}',
-    'method': 'GET',
-    'name': 'getUserById',
-    'parameters': [...],
-    'authentication': {...},
-    'return_type': 'User',
-    'description': '...',
-    'tags': [...]
-}
-```
-
-2. **normalize_path(path: str) -> str**
-   - Ensures path starts with `/`
-   - Removes trailing slashes
-   - Converts path parameter formats:
-     - Express: `:id` → `{id}`
-     - Flask: `<id>` → `{id}`
-     - Result: OpenAPI style `{id}`
-
-3. **normalize_parameters(parameters: List) -> List**
-   - Standardizes parameter definitions
-   - Maps parameter locations: `body`, `query`, `path`, `header`, `formData`
-   - Extracts constraints: `min`, `max`, `minLength`, `maxLength`, `pattern`, `enum`
-
-4. **normalize_type(type_str: str) -> str**
-   - Cross-language type mapping:
-     - C#: `String` → `string`, `Int32` → `integer`
-     - Python: `str` → `string`, `int` → `integer`
-     - Java: `String` → `string`, `Integer` → `integer`
-   - Handles generic types: `List<String>` → `array`
-
-5. **extract_constraints(param: Dict) -> Dict**
-   - Parses validation constraints
-   - Extracts from validation attributes/decorators
-   - Returns: `min`, `max`, `minLength`, `maxLength`, `pattern`, `enum`, `format`, `multipleOf`
-
-6. **extract_auth_requirements(endpoint: Dict) -> Dict**
-   - Identifies authentication needs
-   - Determines auth type: `bearer`, `apiKey`, `oauth2`
-   - Extracts required scopes
-   - Returns:
-```python
-{
-    'required': True/False,
-    'type': 'bearer|apiKey|oauth2',
-    'scopes': ['read', 'write']
-}
-```
-
-7. **group_endpoints(endpoints: List) -> Dict**
-   - Groups endpoints by resource (first path segment)
-   - Skips version prefixes (`/v1`, `/v2`)
-   - Returns: `{'users': [...], 'products': [...]}`
+1. **normalize_endpoint(endpoint)**: Standardizes field names to OpenAPI equivalents
+2. **normalize_path(path)**: Converts path parameter formats (`:id`, `<id>` → `{id}`)
+3. **normalize_parameters(parameters)**: Standardizes parameter definitions and constraints
+4. **normalize_type(type_str)**: Cross-language type mapping
+5. **extract_constraints(param)**: Parses validation constraints
+6. **extract_auth_requirements(endpoint)**: Identifies authentication needs
+7. **group_endpoints(endpoints)**: Groups endpoints by resource
 
 ### **validator_extractor.py**
 
@@ -621,174 +506,29 @@ Extracts and analyzes validation rules from multiple frameworks.
 - Pydantic (Python)
 - Custom inline validations
 
-**Validation Patterns:**
-```python
-validation_patterns = {
-    'fluent_validation': {
-        'not_empty': r'\.NotEmpty\(\)',
-        'not_null': r'\.NotNull\(\)',
-        'length': r'\.Length\((\d+)(?:,\s*(\d+))?\)',
-        'email': r'\.EmailAddress\(\)',
-        'matches': r'\.Matches\("([^"]+)"\)'
-    },
-    'bean_validation': {
-        'not_null': r'@NotNull',
-        'size': r'@Size\((?:min=(\d+))?(?:,?\s*max=(\d+))?\)',
-        'pattern': r'@Pattern\(regexp="([^"]+)"'
-    },
-    'pydantic': {
-        'field': r'Field\(([^)]+)\)',
-        'validator': r'@validator\([\'"](\w+)[\'"]'
-    }
-}
-```
-
 **Key Methods:**
-
-1. **extract(parsed_data: Dict) -> List[Dict]**
-   - Extracts validators from parsed code
-   - Enhances with additional metadata
-   - Extracts inline validations from method bodies
-   - Returns list of validator definitions
-
-2. **enhance_validator(validator: Dict) -> Dict**
-   - Adds `category`: format, size, presence, pattern, range, custom
-   - Determines `strength`: strict, moderate, lenient
-   - Generates `test_cases` for each validation rule
-
-3. **categorize_validation(validator: Dict) -> str**
-   - Analyzes validation rules
-   - Categories:
-     - `format`: email, url, phone patterns
-     - `size`: length, min/max constraints
-     - `presence`: required, not null
-     - `pattern`: regex matching
-     - `range`: between values
-     - `custom`: business logic
-
-4. **determine_validation_strength(validator: Dict) -> str**
-   - Counts validation rules
-   - Checks for strict validations (required + pattern)
-   - Returns: `strict` (3+ rules or required+pattern), `moderate` (2 rules or required), `lenient` (1 rule)
-
-5. **generate_validation_test_cases(validator: Dict) -> List**
-   - Creates test cases for each validation
-   - Examples:
-     - `NotEmpty`: empty string (fail), non-empty (pass)
-     - `Length(5,10)`: 4 chars (fail), 5 chars (pass), 10 chars (pass), 11 chars (fail)
-     - `EmailAddress`: "invalid" (fail), "test@example.com" (pass)
-   - Returns: `input`, `expected` (pass/fail), `reason`
-
-6. **extract_inline_validations(methods: List) -> List**
-   - Scans method bodies for validation patterns:
-     - `if (x == null)` → null_check
-     - `if (string.IsEmpty)` → empty_check
-     - `if (x > 100)` → range_check
-     - `if (Regex.Match)` → regex_check
-   - Returns inline validation definitions
+1. **extract(parsed_data)**: Extracts validators from parsed code
+2. **enhance_validator(validator)**: Adds category, strength, and test_cases
+3. **categorize_validation(validator)**: Categories: format, size, presence, pattern, range, custom
+4. **determine_validation_strength(validator)**: Returns strict, moderate, or lenient
+5. **generate_validation_test_cases(validator)**: Creates test cases per validation rule
+6. **extract_inline_validations(methods)**: Scans method bodies for validation patterns
 
 ### **specification_builder.py**
 
 **SpecificationBuilder Class:**
 Builds complete OpenAPI 3.0 specification from parsed components.
 
-**Output Format:** OpenAPI 3.0 compliant JSON
-
 **Key Methods:**
-
-1. **build(parsed_data: Dict) -> Dict**
-   - Main specification builder
-   - Returns complete OpenAPI spec:
-```python
-{
-    'openapi': '3.0.0',
-    'info': {...},
-    'servers': [...],
-    'paths': {...},
-    'components': {...},
-    'security': [...],
-    'tags': [...],
-    'x-test-metadata': {...}
-}
-```
-
-2. **build_info(parsed_data: Dict) -> Dict**
-   - Creates API info section
-   - Returns: `title`, `version`, `description`
-
-3. **build_servers(parsed_data: Dict) -> List**
-   - Defines API servers
-   - Returns development and production server URLs
-
-4. **build_paths(parsed_data: Dict) -> Dict**
-   - Builds paths section from endpoints
-   - Groups by path and HTTP method
-   - Calls `build_operation()` for each endpoint
-
-5. **build_operation(endpoint: Dict) -> Dict**
-   - Creates operation object:
-     - `summary`, `description`, `operationId`
-     - `parameters` (via `build_parameters()`)
-     - `requestBody` (for POST/PUT/PATCH)
-     - `responses` (via `build_responses()`)
-     - `security` (if auth required)
-     - `tags` (for categorization)
-
-6. **build_parameters(endpoint: Dict) -> List**
-   - Converts parameters to OpenAPI format
-   - Filters out body parameters (handled in requestBody)
-   - Each parameter:
-```python
-{
-    'name': 'id',
-    'in': 'path|query|header',
-    'required': True/False,
-    'description': '...',
-    'schema': {'type': '...', 'constraints': {...}}
-}
-```
-
-7. **build_schema(param: Dict) -> Dict**
-   - Creates JSON Schema for parameter
-   - Includes: `type`, `minLength`, `maxLength`, `minimum`, `maximum`, `pattern`, `enum`, `format`, `default`
-
-8. **build_request_body(body_params: List) -> Dict**
-   - Defines request body for POST/PUT/PATCH
-   - Returns:
-```python
-{
-    'required': True/False,
-    'content': {
-        'application/json': {
-            'schema': {...}
-        }
-    }
-}
-```
-
-9. **build_responses(endpoint: Dict) -> Dict**
-   - Defines expected responses
-   - Default responses: 200, 400, 401, 404, 500
-
-10. **build_components(parsed_data: Dict) -> Dict**
-    - Builds reusable components:
-      - `schemas`: Data models
-      - `securitySchemes`: Auth definitions (bearerAuth, apiKey)
-
-11. **build_model_schema(model: Dict) -> Dict**
-    - Creates JSON Schema from model definition
-    - Lists properties and required fields
-
-12. **extract_business_logic(parsed_data: Dict) -> Dict**
-    - Extracts business logic patterns:
-      - `validations`: Validation rules
-      - `exceptions`: Exception handling
-      - `workflows`: Business workflows
-      - `dependencies`: Service dependencies
-
-13. **extract_exceptions(method_body: str) -> List**
-    - Finds exception types in code
-    - Patterns: `throw new XException`, `raise XError`
+1. **build(parsed_data)**: Main builder → returns OpenAPI 3.0 spec
+2. **build_paths(parsed_data)**: Builds paths section from endpoints
+3. **build_operation(endpoint)**: Creates operation object with parameters, requestBody, responses
+4. **build_parameters(endpoint)**: Converts parameters to OpenAPI format
+5. **build_schema(param)**: Creates JSON Schema for parameter
+6. **build_request_body(body_params)**: Defines request body for POST/PUT/PATCH
+7. **build_responses(endpoint)**: Defines expected responses (200, 400, 401, 404, 500)
+8. **build_components(parsed_data)**: Builds reusable schemas and securitySchemes
+9. **extract_business_logic(parsed_data)**: Extracts validations, exceptions, workflows, dependencies
 
 ### **__init__.py (Input Processing)**
 
@@ -861,15 +601,25 @@ Implements Retrieval-Augmented Generation using FAISS vector database for contex
 **VectorStore Class:**
 FAISS-based vector database for similarity search.
 
-**Supported Index Types:**
-- **IVF (Inverted File)**: Accuracy-focused, requires training
-- **HNSW (Hierarchical Navigable Small World)**: Fast search
-- **Flat**: Simple brute-force (exact but slow)
+**Index Creation Strategy:**
+
+The VectorStore always starts with a **Flat index** (IndexFlatL2) wrapped in an IndexIDMap for ID tracking. This avoids the common FAISS error where IVF indices require training data before they can be used. When sufficient data accumulates, the index can be upgraded to IVF for better performance at scale.
+
+**Automatic IVF Fallback:**
+
+When adding embeddings to an untrained IVF index, the system checks if enough vectors are available for training (must be ≥ `nlist`). If insufficient data is present, the system automatically falls back to a Flat index instead of failing:
+
+```python
+if n < nlist:
+    # Not enough data for IVF — switch to Flat index
+    flat_index = faiss.IndexFlatL2(self.dimension)
+    index = faiss.IndexIDMap(flat_index)
+```
 
 **Initialization:**
 ```python
 def __init__(self):
-    self.dimension = 768  # Embedding dimension
+    self.dimension = 768  # Embedding dimension from rag_config
     self.indices = {}  # Index name → FAISS index
     self.metadata_stores = {}  # Index name → {id → metadata}
     self.index_configs = {}  # Index name → config
@@ -882,47 +632,38 @@ def __init__(self):
 **Key Methods:**
 
 1. **_create_index(index_name: str)**
-   - Creates FAISS index based on config
-   - IVF: `IndexIVFFlat` with quantizer
-   - HNSW: `IndexHNSWFlat` with M=32
-   - Flat: `IndexFlatL2`
+   - Creates a Flat (IndexFlatL2) index by default
    - Wraps with `IndexIDMap` for ID tracking
+   - Avoids requiring training before first use
 
 2. **add(index_name, embeddings, metadata, ids)**
-   - Trains index if needed (IVF)
-   - Adds embeddings with IDs
-   - Stores metadata separately
-   - Usage:
-```python
-embeddings = np.array([[0.1, 0.2, ...], [0.3, 0.4, ...]])
-metadata = [{'text': 'test 1'}, {'text': 'test 2'}]
-store.add('test_patterns', embeddings, metadata)
-```
+   - Ensures proper dtypes: `float32` for embeddings, `int64` for IDs
+   - Ensures contiguous arrays via `np.ascontiguousarray()`
+   - Handles dimension mismatches (padding or truncation)
+   - Trains IVF index if needed, or falls back to Flat
+   - Calls `index.add_with_ids(emb, ids_array)` where:
+     - `emb`: `np.ndarray` of shape `(n, d)` dtype `float32`
+     - `ids_array`: `np.ndarray` of shape `(n,)` dtype `int64`
+   - Stores metadata keyed by ID
 
 3. **search(index_name, query_embedding, k=10)**
+   - Returns empty results if index has no data
+   - Clamps `k` to available vectors
    - Sets IVF nprobe for search
-   - Searches for k nearest neighbors
-   - Returns: (ids, distances, metadata)
-   - Distance → similarity score: `1 / (1 + distance)`
+   - Returns: `(ids, distances, metadata)`
 
 4. **search_multiple_indices(query_embedding, indices, k)**
    - Searches across multiple indices
    - Returns results per index
-   - Used for hybrid retrieval
 
 5. **save_index(index_name) / load_index(index_name)**
    - Persists to disk:
      - `index.faiss`: FAISS index
      - `metadata.pkl`: Metadata store
      - `config.json`: Index configuration
-   - Loads from disk on initialization
 
 6. **get_index_stats(index_name) -> Dict**
-   - Returns:
-     - `total_embeddings`: Count
-     - `dimension`: Embedding size
-     - `index_type`: FAISS index type
-     - `metadata_count`: Metadata entries
+   - Returns: `total_embeddings`, `dimension`, `index_type`, `metadata_count`
 
 **Index Management:**
 - `clear_index(index_name)`: Resets specific index
@@ -939,61 +680,12 @@ Generates embeddings for text and code using transformer models.
 - **Text**: `sentence-transformers/all-mini-lm-l6-v2` (384-768 dim)
 - **Code**: `microsoft/codebert-base` (768 dim)
 
-**Initialization:**
-```python
-def __init__(self):
-    self.text_model = SentenceTransformer('all-mini-lm-l6-v2')
-    self.code_model = AutoModel.from_pretrained('microsoft/codebert-base')
-    self.cache_dir = paths.VECTOR_STORE_DIR / "embedding_cache"
-    self.cache = {}  # In-memory cache
-```
-
 **Key Methods:**
-
-1. **embed_text(text: str, use_cache=True) -> np.ndarray**
-   - Generates text embedding
-   - Checks cache (MD5 hash key)
-   - Uses SentenceTransformer
-   - Normalizes vector (L2 norm)
-   - Saves to cache (pickle)
-   - Returns: 768-dim numpy array
-
-2. **embed_code(code: str, language=None) -> np.ndarray**
-   - Generates code embedding
-   - Uses CodeBERT if available
-   - Preprocesses code (removes comments)
-   - Tokenizes with AutoTokenizer
-   - Extracts last hidden state mean
-   - Fallback: `embed_text()` with preprocessing
-
-3. **_embed_with_codebert(code: str) -> np.ndarray**
-   - Tokenizes code (max 512 tokens)
-   - Forward pass through CodeBERT
-   - Mean pooling of hidden states
-   - Returns normalized embedding
-
-4. **embed_structured(data: Dict) -> np.ndarray**
-   - Converts structured data to text
-   - Formats: `"Path: /api/users | Method: GET | Parameters: ..."`
-   - Embeds combined text
-   - Useful for API specs
-
-5. **embed_batch(texts: List[str]) -> np.ndarray**
-   - Batch embedding for efficiency
-   - Processes in batches of 32
-   - Normalizes each embedding
-   - Returns stacked array
-
-6. **combine_embeddings(embeddings: List, weights=None) -> np.ndarray**
-   - Weighted average of multiple embeddings
-   - Default: equal weights
-   - Normalizes result
-   - Use case: Multi-field embeddings
-
-**Preprocessing:**
-- `_preprocess_code(code, language)`: Removes comments, normalizes whitespace
-- `_remove_python_comments(code)`: Removes `#` and `"""` docstrings
-- `_remove_c_style_comments(code)`: Removes `//` and `/* */`
+1. **embed_text(text, use_cache=True)**: Generates text embedding (768-dim, L2-normalized)
+2. **embed_code(code, language=None)**: Generates code embedding via CodeBERT
+3. **embed_structured(data)**: Converts structured data to text and embeds
+4. **embed_batch(texts)**: Batch embedding for efficiency (batches of 32)
+5. **combine_embeddings(embeddings, weights=None)**: Weighted average of multiple embeddings
 
 **Caching:**
 - MD5 hash of text as cache key
@@ -1005,189 +697,32 @@ def __init__(self):
 **ChunkingStrategy Class:**
 Splits documents into chunks for efficient embedding and retrieval.
 
-**Chunk Dataclass:**
-```python
-@dataclass
-class Chunk:
-    text: str
-    metadata: Dict[str, Any]
-    start_idx: int
-    end_idx: int
-    chunk_id: str
-```
-
 **Strategies:**
-1. **Sliding Window** (default)
-2. **Semantic** (paragraph-based)
-3. **Code** (function/class-based)
-4. **Test** (test case-based)
-
-**Configuration:**
-```python
-chunk_size: int = 512  # Characters per chunk
-chunk_overlap: int = 50  # Overlap for context preservation
-```
+1. **Sliding Window** (default): Sentence-based with overlap
+2. **Semantic**: Paragraph-based
+3. **Code**: Function/class-based splitting
+4. **Test**: Test case boundary splitting
 
 **Key Methods:**
-
-1. **chunk_document(document: str, metadata, strategy) -> List[Chunk]**
-   - Routes to appropriate strategy
-   - Returns list of `Chunk` objects
-
-2. **sliding_window_chunk(document: str, metadata) -> List[Chunk]**
-   - Splits into sentences
-   - Accumulates until chunk_size reached
-   - Adds overlap from previous chunk
-   - Preserves sentence boundaries
-   - Best for: General text, documentation
-
-3. **semantic_chunk(document: str, metadata) -> List[Chunk]**
-   - Splits by paragraphs (`\n\n`)
-   - Respects semantic boundaries
-   - Groups paragraphs until chunk_size
-   - Best for: Documentation, articles
-
-4. **code_chunk(document: str, metadata) -> List[Chunk]**
-   - Detects programming language
-   - Splits by function/class definitions
-   - Patterns:
-     - Python: `def`, `class`, `async def`
-     - C#/Java: Method boundaries with braces
-   - Fallback: Line-based chunking (50 lines)
-   - Metadata: `block_type` (class, function, test)
-   - Best for: Source code
-
-5. **test_chunk(document: str, metadata) -> List[Chunk]**
-   - Identifies test function patterns:
-     - Python: `def test_*`
-     - Java/C#: `*Test` methods
-     - JavaScript: `it('...')`
-     - C++: `TEST(...)`
-   - Splits at test boundaries
-   - Metadata: `test_name`
-   - Best for: Test files
-
-**Helper Methods:**
-- `_split_sentences(text)`: Regex-based sentence splitting
-- `_split_code_blocks(code, language)`: Language-specific code splitting
-- `_split_by_lines(text, lines_per_chunk)`: Simple line-based chunking
-- `_detect_block_type(code_block)`: Identifies code block type
-- `_extract_test_name(test_block)`: Extracts test function name
-
-**Example:**
-```python
-chunker = ChunkingStrategy(chunk_size=512, chunk_overlap=50)
-chunks = chunker.chunk_document(
-    document=code_text,
-    metadata={'file': 'api.py', 'language': 'python'},
-    strategy='code'
-)
-```
+1. **chunk_document(document, metadata, strategy)**: Routes to appropriate strategy
+2. **sliding_window_chunk(document, metadata)**: Preserves sentence boundaries
+3. **semantic_chunk(document, metadata)**: Respects paragraph boundaries
+4. **code_chunk(document, metadata)**: Splits by function/class definitions
+5. **test_chunk(document, metadata)**: Splits at test function boundaries
 
 ### **indexer.py**
 
 **Indexer Class:**
 Manages indexing of documents into vector store.
 
-**Dependencies:**
-- `VectorStore`: For storing embeddings
-- `EmbeddingManager`: For generating embeddings
-- `ChunkingStrategy`: For splitting documents
-
-**Initialization:**
-```python
-def __init__(self, vector_store, embedding_manager, chunking_strategy):
-    self.vector_store = vector_store
-    self.embedding_manager = embedding_manager
-    self.chunking_strategy = chunking_strategy
-    self.indexed_documents = set()  # Track indexed doc IDs
-    self.index_metadata_file = paths.VECTOR_STORE_DIR / "indexed_docs.json"
-```
-
 **Key Methods:**
-
-1. **index_document(document: Dict, index_name=None) -> Dict**
-   - Checks if already indexed (skip duplicates)
-   - Determines appropriate index
-   - Extracts content from document
-   - Chunks document
-   - Generates embeddings for chunks
-   - Adds to vector store with metadata
-   - Marks as indexed
-   - Returns: `{'status': 'indexed', 'chunks': count}`
-
-2. **index_documents(documents: List, index_name=None) -> Dict**
-   - Batch indexes multiple documents
-   - Returns statistics:
-```python
-{
-    'total_documents': int,
-    'indexed': int,
-    'skipped': int,
-    'failed': int,
-    'chunks_created': int
-}
-```
-
-3. **index_test_cases(test_cases: List)**
-   - Specialized indexing for test cases
-   - Formats test case as document
-   - Metadata includes: test_type, endpoint, method
-   - Indexes into `test_patterns`
-
-4. **index_api_specifications(api_specs: List)**
-   - Indexes OpenAPI specs
-   - Creates document per endpoint
-   - Metadata: path, method, operationId, tags
-   - Indexes into `api_specifications`
-
-**Helper Methods:**
-
-- `_determine_index(document: Dict) -> str**
-  - Routes document to appropriate index
-  - Based on document type:
-    - `test_case` → `test_patterns`
-    - `edge_case` → `edge_cases`
-    - `validation` → `validation_rules`
-    - `api_specification` → `api_specifications`
-    - `bug` → `bug_patterns`
-
-- `_extract_content(document: Dict) -> str**
-  - Extracts textual content
-  - Checks fields: `content`, `text`, `code`
-  - Constructs from: `name`, `description`, `summary`
-
-- `_format_test_case(test_case: Dict) -> str**
-  - Formats for indexing:
-```
-Test: {name}
-Type: {test_type}
-Endpoint: {endpoint}
-Method: {method}
-Description: {description}
-Steps: ...
-Assertions: ...
-Test Data: ...
-```
-
-- `_format_api_operation(path, method, operation) -> str**
-  - Formats OpenAPI operation:
-```
-Endpoint: GET /api/users
-Summary: ...
-Parameters: ...
-Request Body: ...
-Responses: ...
-```
+1. **index_document(document, index_name=None)**: Chunks, embeds, and adds single document
+2. **index_documents(documents, index_name=None)**: Batch indexes with statistics
+3. **index_test_cases(test_cases)**: Specialized indexing for test cases
+4. **index_api_specifications(api_specs)**: Indexes OpenAPI specs
 
 **Persistence:**
-- `_load_indexed_documents()`: Loads indexed doc IDs from JSON
-- `_save_indexed_documents()`: Saves indexed doc IDs to JSON
-- Prevents duplicate indexing across sessions
-
-**Update Operations:**
-- `update_index(document, index_name)`: Forces reindex with `force_reindex` flag
-- `clear_index(index_name)`: Clears index and metadata
+- Tracks indexed document IDs in JSON to prevent duplicates across sessions
 
 ### **retriever.py**
 
@@ -1200,79 +735,36 @@ Handles retrieval of relevant documents from vector store.
 - MMR (Maximal Marginal Relevance) for diversity
 - Multi-index hybrid search
 
-**Initialization:**
-```python
-def __init__(self, vector_store, embedding_manager):
-    self.vector_store = vector_store
-    self.embedding_manager = embedding_manager
-    self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2')
-```
-
 **Key Methods:**
 
-1. **retrieve(query: Union[str, np.ndarray], index_name, k=10, rerank=None) -> List[Dict]**
+1. **retrieve(query, index_name, k=10, rerank=None)**
    - Main retrieval method
    - Generates embedding if query is text
-   - Searches vector store
    - Optionally reranks results
-   - Returns top-k results:
-```python
-[{
-    'id': int,
-    'score': float,  # Similarity score (0-1)
-    'metadata': {...},
-    'rank': int
-}, ...]
-```
 
-2. **retrieve_similar_tests(query_embedding, k=10) -> List**
+2. **retrieve_similar_tests(query_embedding, k=10)**
    - Searches `test_patterns` index
-   - Enhances with test classification
-   - Returns similar test cases
+   - Parameter name: `query_embedding` (not `embeddings`)
 
-3. **retrieve_edge_cases(query_embedding, k=5) -> List**
+3. **retrieve_edge_cases(query_embedding, k=5)**
    - Searches `edge_cases` index
-   - Filters by similarity threshold
-   - Returns relevant edge cases
+   - Parameter name: `query_embedding` (not `embeddings`)
 
-4. **retrieve_validation_patterns(query_embedding, k=5) -> List**
+4. **retrieve_validation_patterns(query_embedding, k=5)**
    - Searches `validation_rules` index
-   - Returns validation patterns
-   - Used for validation test generation
+   - Parameter name: `query_embedding` (not `embeddings`)
 
-5. **hybrid_search(query: str, indices=None, k=10) -> List**
+5. **hybrid_search(query, indices=None, k=10)**
    - Searches across multiple indices
-   - Combines results from all indices
-   - Sorts by score
-   - Applies reranking
-   - Applies MMR for diversity
-   - Returns unified result list
+   - Combines, reranks, and applies MMR for diversity
 
 **Reranking:**
-
-**_rerank_results(query: str, results: List) -> List**
-- Uses cross-encoder model
-- Creates query-document pairs
-- Scores each pair (0-1)
+- Uses cross-encoder model for more accurate scoring
 - Combines with vector similarity: `(vector_score + rerank_score) / 2`
-- Re-sorts by final score
-- More accurate but slower than vector search
 
 **Diversity (MMR):**
-
-**_apply_mmr(query_embedding, results, k, lambda_param=0.7) -> List**
-- Maximal Marginal Relevance algorithm
-- Balances relevance and diversity
 - Formula: `MMR = λ * relevance - (1-λ) * max_similarity_to_selected`
-- Selects first result (highest relevance)
-- Iteratively selects results that are relevant but dissimilar to already selected
 - Prevents redundant results
-
-**Classification:**
-
-**_classify_test_type(test_code: str) -> str**
-- Heuristic classification based on keywords
-- Categories: `edge_case`, `null_check`, `happy_path`, `error_handling`, `security`, `general`
 
 ### **knowledge_base.py**
 
@@ -1280,95 +772,21 @@ def __init__(self, vector_store, embedding_manager):
 Manages structured knowledge for API testing.
 
 **Knowledge Types:**
-- `test_patterns`: Common test patterns and strategies
-- `edge_cases`: Edge cases and boundary conditions
-- `validation_rules`: Validation patterns
-- `api_patterns`: Common API design patterns
-- `bug_patterns`: Common bugs and issues
-- `best_practices`: Testing best practices
-
-**Initialization:**
-```python
-def __init__(self):
-    self.knowledge_dir = paths.DATA_DIR / "knowledge_base"
-    self.knowledge = {}  # Type → List[items]
-    self._initialize_knowledge_base()
-```
-
-**Default Test Patterns:**
-```python
-{
-    'name': 'Happy Path Testing',
-    'description': 'Test with valid inputs',
-    'applicable_to': ['GET', 'POST', 'PUT', 'DELETE'],
-    'test_data': {
-        'strategy': 'Use realistic, valid data',
-        'examples': ['Valid IDs', 'Complete objects']
-    }
-}
-```
-
-**Default Edge Cases:**
-```python
-{
-    'type': 'string',
-    'cases': [
-        {'value': '', 'description': 'Empty string'},
-        {'value': ' ', 'description': 'Single space'},
-        {'value': 'A' * 10000, 'description': 'Very long string'},
-        {'value': '<script>alert("xss")</script>', 'description': 'XSS attempt'},
-        {'value': "'; DROP TABLE users; --", 'description': 'SQL injection'}
-    ]
-}
-```
+- `test_patterns`, `edge_cases`, `validation_rules`
+- `api_patterns`, `bug_patterns`, `best_practices`
 
 **Key Methods:**
-
-1. **add_knowledge(knowledge_type: str, item: Dict)**
-   - Adds new knowledge item
-   - Adds metadata: `added_at`, `id` (hash)
-   - Saves to disk
-
-2. **get_knowledge(knowledge_type: str, filters=None) -> List**
-   - Retrieves knowledge items
-   - Optionally filters by criteria
-   - Example: `get_knowledge('test_patterns', {'applicable_to': 'POST'})`
-
-3. **update_knowledge(knowledge_type, item_id, updates)**
-   - Updates existing item
-   - Adds `updated_at` timestamp
-   - Saves to disk
-
-4. **remove_knowledge(knowledge_type, item_id)**
-   - Removes item by ID
-   - Saves to disk
-
-5. **search_knowledge(query: str, knowledge_types=None) -> List**
-   - Full-text search across knowledge base
-   - Searches in JSON string representation
-   - Returns matching items with type
-
-6. **get_test_pattern_for_endpoint(method: str, endpoint_type=None) -> List**
-   - Returns relevant test patterns for HTTP method
-   - Filters by `applicable_to` field
-
-7. **get_edge_cases_for_type(data_type: str) -> List**
-   - Returns edge cases for specific data type
-   - Types: `string`, `integer`, `array`, `date`
-
-8. **add_test_result(test_case, result)**
-   - Learns from execution results
-   - Successful tests → `test_patterns`
-   - Failed tests → `bug_patterns`
+1. **add_knowledge(knowledge_type, item)**: Adds new knowledge item
+2. **get_knowledge(knowledge_type, filters=None)**: Retrieves with optional filtering
+3. **update_knowledge(knowledge_type, item_id, updates)**: Updates existing item
+4. **search_knowledge(query, knowledge_types=None)**: Full-text search
+5. **get_test_pattern_for_endpoint(method, endpoint_type=None)**: Returns relevant patterns for HTTP method
+6. **get_edge_cases_for_type(data_type)**: Returns edge cases for data type
+7. **add_test_result(test_case, result)**: Learns from execution results
 
 **Persistence:**
-- Each knowledge type saved as JSON file
-- Location: `data/knowledge_base/{type}.json`
-- `export_knowledge(output_path)`: Exports all knowledge
-- `import_knowledge(import_path, merge=True)`: Imports knowledge
-
-**Statistics:**
-- `get_statistics()`: Returns counts per type, last updated
+- Each knowledge type saved as JSON file in `data/knowledge_base/`
+- `export_knowledge(output_path)` / `import_knowledge(import_path, merge=True)`
 
 ---
 
@@ -1382,15 +800,19 @@ Multi-agent system using Llama 3.2 via LM Studio for specialized testing tasks.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                   Agent Manager                          │
-│              (Coordinates all agents)                     │
-└───────┬──────────────────────────────────────────────────┘
-        │
-        ├──→ Analyzer Agent (API analysis)
-        ├──→ Test Designer Agent (Test case design)
-        ├──→ Edge Case Agent (Edge case generation)
-        ├──→ Data Generator Agent (Test data creation)
-        └──→ Report Writer Agent (Report generation)
+│                  LlamaOrchestrator                        │
+│          (Async Context Manager wrapper)                  │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │                Agent Manager                        │  │
+│  │            (Coordinates all agents)                  │  │
+│  └───────┬────────────────────────────────────────────┘  │
+│          │                                                │
+│          ├──→ Analyzer Agent (API analysis)               │
+│          ├──→ Test Designer Agent (Test case design)      │
+│          ├──→ Edge Case Agent (Edge case generation)      │
+│          ├──→ Data Generator Agent (Test data creation)   │
+│          └──→ Report Writer Agent (Report generation)     │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### **llama_client.py**
@@ -1403,359 +825,128 @@ Client for interacting with Llama 3.2 via LM Studio.
 - Compatible with OpenAI API format
 - No API key required
 
-**Key Methods:**
+**Async Context Manager:**
 
-1. **generate(prompt: str, **kwargs) -> str**
-   - Sends completion request
-   - Endpoint: `/v1/completions`
-   - Uses async/await with aiohttp
-   - Retry logic with exponential backoff (3 attempts)
-   - Returns generated text
+LlamaClient uses the async context manager protocol (`__aenter__`/`__aexit__`) for lifecycle management. It does **not** expose `initialize()` or `close()` methods directly.
 
-2. **chat(messages: List[Dict], **kwargs) -> str**
-   - Chat-style completion
-   - Formats messages as prompt:
-```python
-System: {system_message}
-User: {user_message}
-Assistant: {assistant_message}
-Assistant:
-```
-   - Returns assistant response
-
-3. **generate_json(prompt: str, schema=None, **kwargs) -> Dict**
-   - Generates structured JSON response
-   - Adds instruction: "Respond with valid JSON only"
-   - Strips markdown code blocks
-   - Parses JSON
-   - Validates against schema if provided
-   - Returns parsed JSON
-
-4. **stream_generate(prompt: str, callback=None, **kwargs)**
-   - Streaming generation for real-time output
-   - Yields tokens as they're generated
-   - Calls async callback for each token
-
-5. **get_embeddings(text: str) -> List[float]**
-   - Attempts to get embeddings from LM Studio
-   - Endpoint: `/v1/embeddings`
-   - Returns embedding vector if supported
-   - Warning if not available
-
-6. **get_config_for_agent(agent_type: str) -> Dict**
-   - Returns agent-specific configuration
-   - Different temperatures per agent
-
-**Context Manager:**
 ```python
 async with LlamaClient() as client:
-    response = await client.generate("prompt")
+    response = await client.generate("Hello!")
 ```
 
-### **prompt_templates.py**
+**Key Methods:**
 
-**PromptTemplates Class:**
-Collection of reusable prompt templates.
+1. **generate(prompt, **kwargs) -> str**: Sends completion request with retry logic
+2. **chat(messages, **kwargs) -> str**: Chat-style completion
+3. **generate_json(prompt, schema=None, **kwargs) -> Dict**: Generates structured JSON response
+4. **stream_generate(prompt, callback=None, **kwargs)**: Streaming generation
+5. **get_embeddings(text) -> List[float]**: Gets embeddings from LM Studio if supported
+6. **get_config_for_agent(agent_type) -> Dict**: Returns agent-specific configuration
 
-**Templates:**
+### **orchestrator.py**
 
-1. **API_ANALYSIS**
-   - Analyzes API endpoint for testing requirements
-   - Identifies: critical scenarios, edge cases, security vulnerabilities, performance considerations, validation requirements
+**LlamaOrchestrator Class:**
+Wraps LlamaClient and AgentManager in an async context manager.
 
-2. **HAPPY_PATH_TEST**
-   - Generates happy path test case
-   - Inputs: endpoint, method, parameters
-   - Creates test verifying successful operation
+**Lifecycle Management:**
 
-3. **EDGE_CASE_TEST**
-   - Generates edge case tests
-   - Inputs: parameter name, type, constraints
-   - Includes: boundary values, null/empty cases, extreme values
+LlamaOrchestrator delegates to LlamaClient's async context manager protocol:
 
-4. **SECURITY_TEST**
-   - Generates security test cases
-   - Tests: SQL injection, XSS, auth bypass, authorization elevation
+```python
+async def __aenter__(self):
+    await self.client.__aenter__()
+    self.agent_manager = AgentManager(llama_client=self.client)
+    return self
 
-5. **VALID_DATA / INVALID_DATA**
-   - Generates valid/invalid test data
-   - Ensures constraints are satisfied/violated
-
-6. **TEST_SUMMARY**
-   - Summarizes test execution results
-   - Inputs: total, passed, failed
-   - Provides insights and recommendations
-
-7. **FAILURE_ANALYSIS**
-   - Analyzes test failure
-   - Identifies root cause
-   - Suggests fixes
-
-8. **CONTEXT_INTEGRATION**
-   - Integrates RAG context
-   - Adapts patterns from similar tests
-
-9. **VALIDATION_RULES**
-   - Extracts validation rules from code
-   - Identifies: required fields, type constraints, format requirements, business rules
+async def __aexit__(self, exc_type, exc_val, exc_tb):
+    if self.client:
+        await self.client.__aexit__(exc_type, exc_val, exc_tb)
+```
 
 **Usage:**
 ```python
-template = PromptTemplates.get_template('api_analysis')
-prompt = template.format(api_specification=spec)
+async with LlamaOrchestrator() as orchestrator:
+    result = await orchestrator.generate_test_suite(
+        api_spec=spec,
+        context=context
+    )
 ```
 
-### **prompt_builder.py**
+**Key Methods:**
+
+- **generate_test_suite(api_spec, context, config=None)**: Generates a complete test suite using coordinated agents. Delegates to `AgentManager.orchestrate()`. Applies test limits and priority sorting (high > medium > low).
+
+### **connection_check.py**
+
+Utility for verifying LM Studio connectivity before running the pipeline.
+
+### **prompt_templates.py** (in `llm/prompts/`)
+
+**PromptTemplates Class:**
+Collection of reusable prompt templates for API analysis, test generation, security testing, data generation, reporting, failure analysis, context integration, and validation rules.
+
+### **prompt_builder.py** (in `llm/prompts/`)
 
 **PromptBuilder Class:**
 Dynamically constructs prompts for different scenarios.
 
 **Key Methods:**
-
-1. **build_analysis_prompt(api_spec, context=None) -> str**
-   - Formats API specification
-   - Includes RAG context
-   - Requests structured JSON response
-   - Sections: parameters, business logic, security, edge cases, performance
-
-2. **build_test_generation_prompt(test_type, api_spec, context=None, examples=None) -> str**
-   - Generates test case prompt
-   - Includes test-type specific instructions
-   - Provides test case schema
-   - Examples for reference
-
-3. **build_data_generation_prompt(parameters, test_type='valid', constraints=None) -> str**
-   - Generates test data prompt
-   - Valid: realistic data satisfying constraints
-   - Invalid: data violating constraints
-   - Edge: boundary values and extreme cases
-
-4. **build_report_prompt(results, report_type='summary') -> str**
-   - Report generation prompt
-   - Types: `summary`, `detailed`, `recommendations`
-   - Includes execution statistics
-
-**Helper Methods:**
-
-- `_format_api_spec(api_spec)`: Formats spec for prompt
-- `_format_context(context)`: Formats RAG context
-- `_format_examples(examples)`: Formats example test cases
-- `_get_test_type_instructions(test_type)`: Returns test-type specific instructions
-- `_get_test_case_schema(test_type)`: Returns JSON schema for test case
-
-**Test Type Instructions:**
-```python
-'happy_path': """
-- Cover basic successful operations
-- Use valid, realistic data
-- Verify expected responses
-- Test different valid parameter combinations
-"""
-
-'security': """
-- Test SQL injection
-- Check XSS vulnerabilities
-- Test command injection
-- Verify path traversal protection
-- Test authentication bypass
-"""
-```
+1. **build_analysis_prompt(api_spec, context=None)**: Formats API spec with RAG context
+2. **build_test_generation_prompt(test_type, api_spec, context=None, examples=None)**: Test case prompt
+3. **build_data_generation_prompt(parameters, test_type, constraints=None)**: Test data prompt
+4. **build_report_prompt(results, report_type)**: Report generation prompt
 
 ### **response_parser.py**
 
 **ResponseParser Class:**
 Parses and validates LLM responses.
 
-**Parsers:**
-- `json`: Structured JSON
-- `list`: List of items
-- `code`: Code blocks
-- `text`: Plain text
-- `structured`: Structured text with sections
-
-**Key Methods:**
-
-1. **parse(response: str, expected_format='json') -> Any**
-   - Routes to appropriate parser
-   - Returns parsed response
-
-2. **parse_json(response: str) -> Union[Dict, List]**
-   - Cleans JSON response (removes markdown)
-   - Attempts JSON parsing
-   - Extracts JSON from text if direct parsing fails
-   - Fallback to structured parsing
-
-3. **parse_list(response: str) -> List[str]**
-   - Tries JSON parsing first
-   - Falls back to text list parsing
-   - Removes list markers (-, *, numbers)
-
-4. **parse_code(response: str) -> Dict**
-   - Extracts code blocks with triple backticks
-   - Returns: `language`, `code`, `description`
-   - Handles inline code with single backticks
-
-5. **parse_structured(response: str) -> Dict**
-   - Parses text with headers
-   - Splits by numbered lists, headers, bold text
-   - Groups content by section
-   - Returns: `{section_name: content}`
+**Parsers:** `json`, `list`, `code`, `text`, `structured`
 
 **Validators:**
-
 - `validate_test_case(test_case)`: Checks required fields (name, endpoint, method)
 - `validate_analysis(analysis)`: Checks required fields (endpoint, method, critical_parameters)
-
-**Cleaning:**
-
-- `_clean_json_response(response)`: Removes markdown, finds JSON boundaries
-- `_extract_description(full_response, code)`: Extracts description from code response
 
 ### **agents/base_agent.py**
 
 **BaseAgent (Abstract Class):**
-Base class for all LLM agents.
 
-**Initialization:**
 ```python
 def __init__(self, llama_client, agent_type: str = None):
     self.client = llama_client
     self.agent_type = agent_type
-    self.config = self._get_config()  # Agent-specific config
+    self.config = self._get_config()
 ```
 
-**Abstract Method:**
-- `execute(input_data: Dict) -> Any`: Must be implemented by subclasses
+**Abstract Method:** `execute(input_data: Dict) -> Any`
 
 **Retry Logic:**
-
-- `generate_with_retry(prompt, max_retries=3)`: Retries on failure
-- `generate_json_with_retry(prompt, schema=None, max_retries=3)`: JSON with retry
-
-**Helper Methods:**
-
-- `format_context(context: Dict) -> str`: Formats RAG context for prompt
-- `validate_response(response) -> bool`: Basic validation
+- `generate_with_retry(prompt, max_retries=3)`
+- `generate_json_with_retry(prompt, schema=None, max_retries=3)`
 
 ### **agents/analyzer_agent.py**
 
 **AnalyzerAgent Class:**
 Analyzes API specifications and identifies testing requirements.
 
-**Extends:** BaseAgent
+**Key Method:** `analyze(api_spec, context) -> Dict`
 
-**Purpose:** First agent in pipeline - analyzes API to guide test generation
-
-**Key Method:**
-
-**analyze(api_spec: Dict, context: Dict) -> Dict**
-
-Input: API specification, RAG context
-Output: Comprehensive analysis
-
-```python
-{
-    'endpoint': '/api/users/{id}',
-    'method': 'GET',
-    'critical_parameters': ['id', 'includeDeleted'],
-    'auth_requirements': {
-        'required': True,
-        'type': 'bearer',
-        'scopes': ['users:read']
-    },
-    'business_logic': ['User must exist', 'Soft delete handling'],
-    'failure_points': ['Invalid ID', 'Unauthorized access'],
-    'dependencies': ['UserService', 'AuthService'],
-    'validation_rules': ['ID must be positive integer'],
-    'error_scenarios': ['404 if not found', '401 if unauthorized'],
-    'performance': {
-        'expected_latency': '<100ms',
-        'throughput': '1000 req/s'
-    }
-}
-```
-
-**Prompt Construction:**
-- Formats API specification with parameters, request body, responses
-- Includes RAG context (similar tests, edge cases, validation patterns)
-- Requests structured JSON analysis
-
-**Analysis Schema:**
-Provides JSON schema for consistent output structure
-
-**Risk Assessment:**
-- `_assess_risks(api_spec)`: Categorizes risks (high, medium, low)
-  - High: No auth, DELETE/PUT operations, file uploads
-  - Medium: No validation rules
-  - Low: Other considerations
-
-**Complexity Assessment:**
-- `_assess_complexity(api_spec)`: Returns complexity level
-  - Score factors: parameter count, nested structures, response codes, dependencies
-  - Levels: low (<5), medium (5-15), high (>15)
+Returns comprehensive analysis including critical_parameters, auth_requirements, business_logic, failure_points, dependencies, validation_rules, error_scenarios, and performance expectations.
 
 ### **agents/test_designer.py**
 
 **TestDesignerAgent Class:**
 Designs comprehensive test cases based on analysis.
 
-**Extends:** BaseAgent
+**Key Method:** `design_tests(analysis, context, config) -> List[Dict]`
 
-**Purpose:** Generates various test types based on analyzer output
-
-**Key Method:**
-
-**design_tests(analysis: Dict, context: Dict, config: Dict) -> List[Dict]**
-
-Generates test cases for multiple categories:
-- Happy path
-- Validation
-- Authentication
-- Error handling
-- Boundary
-- Performance
-
-**Test Types:**
-
-1. **_generate_happy_path_tests(analysis, context)**
-   - 3-5 basic successful operations
-   - Valid data with different combinations
-   - Expected successful responses
-   - Uses RAG context for similar successful tests
-
-2. **_generate_validation_tests(analysis, context)**
-   - Tests each validation rule
-   - Required field validation
-   - Data type validation
-   - Format validation (email, phone)
-   - Length/size constraints
-   - Pattern matching
-
-3. **_generate_auth_tests(analysis, context)**
-   - No authentication
-   - Invalid token/credentials
-   - Expired token
-   - Insufficient permissions/scopes
-   - Valid authentication
-
-4. **_generate_error_tests(analysis, context)**
-   - 400 Bad Request scenarios
-   - 404 Not Found scenarios
-   - 409 Conflict scenarios
-   - 500 Internal Server Error scenarios
-
-5. **_generate_boundary_tests(analysis, context)**
-   - Minimum valid values
-   - Maximum valid values
-   - Just below minimum (invalid)
-   - Just above maximum (invalid)
-   - Edge cases (0, -1, empty, null)
-
-6. **_generate_performance_tests(analysis, context)**
-   - Response time validation
-   - Concurrent request handling
-   - Large payload handling
-   - Rate limiting validation
+**Test Types Generated:**
+1. Happy path tests
+2. Validation tests
+3. Authentication tests
+4. Error handling tests
+5. Boundary tests
+6. Performance tests
 
 **Test Case Structure:**
 ```python
@@ -1772,195 +963,38 @@ Generates test cases for multiple categories:
 }
 ```
 
-**Prioritization:**
-
-**_prioritize_tests(test_cases, max_tests) -> List**
-- Scores each test based on type and importance
-- Priority order: authentication > validation > happy_path > error_handling > boundary > performance
-- Bonus for specific assertions
-- Returns top N tests
-
 ### **agents/edge_case_agent.py**
 
 **EdgeCaseAgent Class:**
 Generates creative edge case and security test scenarios.
 
-**Extends:** BaseAgent
+**Key Method:** `generate_edge_cases(api_spec, analysis) -> List[Dict]`
 
-**Purpose:** High-temperature agent for creative edge case discovery
-
-**Key Method:**
-
-**generate_edge_cases(api_spec: Dict, analysis: Dict) -> List[Dict]**
-
-Generates 4 categories of edge cases:
-1. Parameter edge cases
-2. Combination edge cases
-3. Security edge cases
-4. State-based edge cases
-
-**1. Parameter Edge Cases:**
-
-**_generate_parameter_edge_cases(param, api_spec)**
-
-For each parameter, generates:
-- **Boundary values**: Min, max, just outside bounds
-- **Type mismatches**: Wrong data types
-- **Special characters**: Encoding issues
-- **Null/empty/undefined**: Missing values
-- **Extreme values**: Very large, very small, infinity, NaN
-- **Format violations**: Invalid formats
-- **Injection attempts**: SQL, XSS, command injection
-
-Example:
-```python
-{
-    'name': 'SQL Injection via username parameter',
-    'description': 'Tests SQL injection protection',
-    'parameter': 'username',
-    'value': "admin' OR '1'='1",
-    'expected_behavior': 'Request rejected or sanitized',
-    'risk_level': 'high'
-}
-```
-
-**2. Combination Edge Cases:**
-
-**_generate_combination_edge_cases(parameters, api_spec)**
-
-Tests parameter interactions:
-- All parameters at minimum values
-- All parameters at maximum values
-- Mix of min and max values
-- One valid, others invalid
-- Conflicting values violating business logic
-
-**3. Security Edge Cases:**
-
-**_generate_security_edge_cases(api_spec, analysis)**
-
-Security-focused tests:
-- SQL Injection attempts
-- XSS (Cross-Site Scripting) attempts
-- Command injection
-- Path traversal attacks (`../../etc/passwd`)
-- Authentication bypass attempts
-- Authorization elevation attempts
-- CSRF attacks
-- XXE injection (XML endpoints)
-- Buffer overflow attempts
-- Rate limiting bypass
-
-**4. State-Based Edge Cases:**
-
-**_generate_state_edge_cases(api_spec, analysis)**
-
-Tests state transitions:
-- Resource doesn't exist
-- Resource already exists (for creation)
-- Concurrent modifications
-- Stale data scenarios
-- Transaction rollback scenarios
-- Partial state updates
-- Race conditions
-
-**Risk Levels:**
-- `high`: Security vulnerabilities
-- `medium`: Data integrity issues
-- `low`: Minor edge cases
+**Categories:**
+1. Parameter edge cases (boundary values, type mismatches, injection attempts)
+2. Combination edge cases (parameter interactions)
+3. Security edge cases (SQL injection, XSS, CSRF, path traversal)
+4. State-based edge cases (race conditions, concurrent modifications)
 
 ### **agents/data_generator.py**
 
 **DataGeneratorAgent Class:**
 Generates realistic test data for test cases.
 
-**Extends:** BaseAgent
-
-**Purpose:** Creates valid, invalid, and edge case test data
-
-**Faker Patterns:**
-```python
-faker_patterns = {
-    'email': lambda: f"test_{random.randint(1000, 9999)}@example.com",
-    'phone': lambda: f"+1{random.randint(1000000000, 9999999999)}",
-    'uuid': lambda: "{uuid format}",
-    'date': lambda: (datetime.now() + timedelta(days=random.randint(-365, 365))).isoformat(),
-    'url': lambda: f"https://example.com/{random.choice(['api', 'test'])}/{random.randint(1, 100)}",
-    'ip': lambda: f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 255)}"
-}
-```
-
-**Key Method:**
-
-**generate_data(test_cases: List, api_spec: Dict) -> Dict**
-
-Generates data for each test case based on test type:
-- `happy_path` → valid data
-- `validation` → invalid data
-- `boundary` → boundary values
-- `edge_case` → edge values
+**Key Method:** `generate_data(test_cases, api_spec) -> Dict`
 
 **Data Generation Methods:**
-
-1. **_generate_valid_data(test_case, api_spec)**
-   - Realistic, valid data satisfying all constraints
-   - Uses LLM for complex generation
-   - Applies faker patterns for common fields
-   - Returns: `{param_name: value}`
-
-2. **_generate_validation_data(test_case, api_spec)**
-   - Invalid data based on test description
-   - Missing required fields
-   - Wrong data types
-   - Invalid lengths/sizes
-   - Invalid formats
-   - Returns: `{param_name: invalid_value}`
-
-3. **_generate_boundary_data(test_case, api_spec)**
-   - Boundary values from constraints
-   - Min values, max values
-   - Edge strings (min length, max length)
-   - Returns: `{param_name: boundary_value}`
-
-4. **_generate_edge_data(test_case, api_spec)**
-   - Edge case values:
-     - Integer: 0, -1, MAX_INT, MIN_INT
-     - Number: 0.0, -0.0, infinity, -infinity
-     - String: '', ' ', '\n', '<script>', SQL injection
-     - Boolean: null
-     - Array: [], [null], deeply nested
-     - Object: {}, null, {'': ''}
-
-**Value Generators:**
-
-- `_generate_valid_value(param)`: Generates valid value based on type and constraints
-- `_generate_wrong_type(correct_type)`: Generates wrong type (e.g., string for integer)
-- `_generate_invalid_length(param)`: Generates string violating length constraints
-- `_generate_invalid_format(param_type)`: Generates invalid format (e.g., "invalid-email")
-- `_generate_boundary_value(constraints)`: Generates min or max value
-- `_generate_edge_value(param_type)`: Generates edge case value
-
-**Pattern Application:**
-
-`_apply_faker_patterns(data)`: Applies faker patterns to fields based on name (email, phone, uuid, etc.)
+- `_generate_valid_data()`: Realistic data satisfying constraints
+- `_generate_validation_data()`: Invalid data for validation testing
+- `_generate_boundary_data()`: Boundary values from constraints
+- `_generate_edge_data()`: Edge case values (0, -1, MAX_INT, empty, null, injection strings)
 
 ### **agents/report_writer.py**
 
 **ReportWriterAgent Class:**
 Generates professional QASE-style test reports.
 
-**Extends:** BaseAgent
-
-**Purpose:** Final agent - produces comprehensive test reports
-
-**Key Method:**
-
-**generate_report(execution_results: List, session: Dict) -> Dict**
-
-Generates complete test report:
-- Summary statistics
-- Individual test case reports
-- Recommendations
+**Key Method:** `generate_report(execution_results, session) -> Dict`
 
 **Report Structure:**
 ```python
@@ -1968,164 +1002,36 @@ Generates complete test report:
     'title': 'API Test Report - {session_id}',
     'generated_at': '2024-01-01T00:00:00',
     'summary': {...},
-    'test_cases': [...],
+    'test_cases': [...],  # QASE-style individual reports
     'recommendations': [...],
-    'metadata': {
-        'session_id': '...',
-        'api_endpoint': '...',
-        'total_duration': 123.45
-    }
+    'metadata': {...}
 }
 ```
-
-**Summary Generation:**
-
-`_generate_summary(execution_results) -> Dict`
-
-```python
-{
-    'total_tests': 50,
-    'passed': 45,
-    'failed': 5,
-    'pass_rate': 90.0,
-    'by_test_type': {
-        'happy_path': {'total': 10, 'passed': 10, 'failed': 0},
-        'validation': {'total': 15, 'passed': 13, 'failed': 2},
-        ...
-    },
-    'critical_failures': 2,
-    'execution_time': 123.45
-}
-```
-
-**Test Case Reports:**
-
-`_generate_test_case_report(result) -> Dict`
-
-QASE-style format:
-```python
-{
-    'title': 'Test name',
-    'status': 'PASSED|FAILED',
-    'severity': 'critical|major|normal|minor',
-    'priority': 'high|medium|low',
-    'test_type': '...',
-    'preconditions': [...],
-    'steps': [
-        {'action': '...', 'expected': '...'},
-        ...
-    ],
-    'expected_result': '...',
-    'actual_result': '...',
-    'execution_time': 1.23,
-    'error': '...' if failed,
-    'failure_analysis': '...' if failed,
-    'attachments': {
-        'request': {...},
-        'response': {...},
-        'logs': [...]
-    }
-}
-```
-
-**Preconditions Generation:**
-- API endpoint availability
-- Valid authentication (if not auth test)
-- Test data prepared
-- Service dependencies available
-
-**Steps Generation:**
-1. Setup test environment
-2. Prepare test data
-3. Send HTTP request
-4. Validate assertions
-5. Clean up test data
-
-**Failure Analysis:**
-
-`_analyze_failure(result) -> str`
-- Uses LLM to analyze failure
-- Identifies root cause
-- Determines severity
-- Recommends action
-- Concise explanation (<100 words)
-
-**Recommendations Generation:**
-
-`_generate_recommendations(execution_results) -> List[str]`
-- Analyzes failure patterns
-- Groups by test type
-- Uses LLM to generate 3-5 actionable recommendations:
-  - Critical issues needing immediate attention
-  - Systematic problems
-  - Areas needing additional coverage
-  - Performance/security concerns
-
-**Severity/Priority Determination:**
-
-- **Severity**: Based on test type
-  - `critical`: authentication, security tests
-  - `major`: validation, error handling
-  - `normal`: boundary, edge cases
-  - `minor`: other
-
-- **Priority**: Based on severity and failure status
-  - Failed critical → `high`
-  - Failed major → `medium`
-  - Failed normal/minor → `low`
-  - Passed → `low`
 
 ### **agent_manager.py**
 
 **AgentManager Class:**
 Coordinates multiple agents with dependency management.
 
-**Purpose:** Orchestrates agent execution with proper task dependencies
-
-**Agent Types Enum:**
-```python
-class AgentType(Enum):
-    ANALYZER = "analyzer"
-    TEST_DESIGNER = "test_designer"
-    EDGE_CASE = "edge_case"
-    DATA_GENERATOR = "data_generator"
-    REPORT_WRITER = "report_writer"
-```
-
-**AgentTask Dataclass:**
-```python
-@dataclass
-class AgentTask:
-    agent_type: AgentType
-    input_data: Dict[str, Any]
-    dependencies: List[str] = None
-    priority: int = 1
-```
-
 **Initialization:**
+
+AgentManager receives the LlamaClient instance and passes it to each agent:
+
 ```python
-def __init__(self):
+def __init__(self, llama_client):
     self.agents = {
-        AgentType.ANALYZER: AnalyzerAgent(),
-        AgentType.TEST_DESIGNER: TestDesignerAgent(),
-        AgentType.EDGE_CASE: EdgeCaseAgent(),
-        AgentType.DATA_GENERATOR: DataGeneratorAgent(),
-        AgentType.REPORT_WRITER: ReportWriterAgent()
+        AgentType.ANALYZER: AnalyzerAgent(llama_client),
+        AgentType.TEST_DESIGNER: TestDesignerAgent(llama_client),
+        AgentType.EDGE_CASE: EdgeCaseAgent(llama_client),
+        AgentType.DATA_GENERATOR: DataGeneratorAgent(llama_client),
+        AgentType.REPORT_WRITER: ReportWriterAgent(llama_client)
     }
     self.task_queue = asyncio.Queue()
     self.results = {}
     self.running_tasks = {}
 ```
 
-**Key Method:**
-
-**orchestrate(api_spec: Dict, context: Dict) -> Dict**
-
-Main orchestration flow:
-
-1. Create task workflow
-2. Execute tasks with dependency resolution
-3. Combine results
+**Key Method:** `orchestrate(api_spec, context) -> Dict`
 
 **Task Workflow:**
 ```python
@@ -2144,24 +1050,7 @@ Main orchestration flow:
 ]
 ```
 
-**Dependency Resolution:**
-
-`_wait_for_dependencies(dependencies: List[str])`
-- Waits until all dependent tasks complete
-- Checks `self.results` for completed tasks
-- Async polling with sleep(0.1)
-
-**Task Execution:**
-
-`_execute_task(task: AgentTask) -> Any`
-- Retrieves appropriate agent
-- Injects dependency results into input data
-- Executes agent
-- Stores result in `self.results`
-
 **Result Combination:**
-
-`_combine_results(results: Dict) -> Dict`
 ```python
 {
     'analysis': results.get('analyzer'),
@@ -2174,13 +1063,6 @@ Main orchestration flow:
     }
 }
 ```
-
-**Single Agent Execution:**
-
-`execute_single_agent(agent_type: AgentType, input_data: Dict) -> Any`
-- Executes agent independently
-- Bypasses orchestration
-- Returns agent result directly
 
 ---
 
@@ -2200,13 +1082,29 @@ PPO (Proximal Policy Optimization) based system for intelligent test selection a
         ├──→ Policy Network (Action Selection)
         ├──→ Value Network (State Evaluation)
         ├──→ Experience Buffer (Replay Memory)
-        └──→ Reward Calculator (Reward Function)
+        ├──→ Reward Calculator (Reward Function)
+        └──→ State Extractor (Feature Engineering)
+```
+
+### **state_extractor.py**
+
+**`extract_state()` Function:**
+Builds the 64-dimensional state vector (`TOTAL_STATE_DIM = 64`) from test cases, API spec, history, and context.
+
+```python
+state = extract_state(
+    test_cases=[test_case],
+    api_spec=api_spec,
+    history=[],
+    context=None
+)
+# Returns: np.ndarray of shape (64,)
 ```
 
 ### **policy_network.py**
 
 **PolicyNetwork Class:**
-Neural network for selecting test actions (test types/priorities).
+Neural network for selecting test actions.
 
 **Architecture:**
 ```python
@@ -2217,25 +1115,9 @@ Input (state_dim) → Linear(256) → ReLU → Dropout(0.1)
 ```
 
 **Key Methods:**
-
-1. **forward(state: Tensor) -> Tensor**
-   - Forward pass through network
-   - Returns action probabilities (softmax)
-
-2. **get_action(state: Tensor, deterministic=False) -> Tensor**
-   - Selects action from policy
-   - Deterministic: argmax (exploitation)
-   - Stochastic: sample from distribution (exploration)
-   - Returns action index
-
-3. **evaluate_actions(states: Tensor, actions: Tensor) -> tuple**
-   - For PPO training
-   - Returns: (log_probabilities, entropy)
-   - Used in policy gradient calculation
-
-**Weight Initialization:**
-- Xavier uniform initialization
-- Small positive bias (0.01)
+1. **forward(state)**: Forward pass → action probabilities
+2. **get_action(state, deterministic=False)**: Selects action (argmax or sample)
+3. **evaluate_actions(states, actions)**: Returns log_probabilities and entropy for PPO training
 
 ### **value_network.py**
 
@@ -2251,163 +1133,37 @@ Input (state_dim) → Linear(256) → ReLU → Dropout(0.1)
 ```
 
 **Key Methods:**
-
-1. **forward(state: Tensor) -> Tensor**
-   - Forward pass
-   - Returns single value (state value)
-
-2. **get_value(state: Tensor) -> float**
-   - Gets value for single state
-   - Returns float value
-
-**Purpose:**
-- Estimates expected return from state
-- Used in advantage calculation (A = Q - V)
-- Trained with TD(λ) error
+1. **forward(state)**: Returns single state value
+2. **get_value(state)**: Gets value for single state as float
 
 ### **experience_buffer.py**
 
 **ExperienceBuffer Class:**
 Replay buffer with prioritized experience replay.
 
-**Experience Dataclass:**
-```python
-@dataclass
-class Experience:
-    state: Tensor
-    action: Tensor
-    reward: float
-    next_state: Tensor
-    done: bool
-    priority: float = 1.0
-```
-
-**Initialization:**
-```python
-def __init__(self, capacity: int):
-    self.buffer = deque(maxlen=capacity)  # Circular buffer
-    self.priorities = deque(maxlen=capacity)
-    self.alpha = 0.6  # Priority exponent
-    self.beta = 0.4  # Importance sampling
-```
-
 **Key Methods:**
+1. **add(state, action, reward, next_state, done)**: Adds experience
+2. **sample(batch_size)**: Samples batch (uniform or prioritized)
+3. **update_priorities(indices, td_errors)**: Updates priorities after training
 
-1. **add(state, action, reward, next_state, done)**
-   - Adds experience to buffer
-   - Assigns initial priority (max existing priority)
-   - Automatic eviction when full (FIFO)
-
-2. **sample(batch_size: int) -> List[Experience]**
-   - Samples batch of experiences
-   - Uniform or prioritized sampling
-
-3. **_uniform_sample(batch_size: int)**
-   - Random uniform sampling
-   - Simple baseline
-
-4. **_prioritized_sample(batch_size: int)**
-   - Prioritized Experience Replay (PER)
-   - Sampling probability: `P(i) = p_i^α / Σ p_j^α`
-   - Higher priority → higher probability
-   - Samples without replacement
-
-5. **update_priorities(indices: List[int], td_errors)**
-   - Updates priorities after training
-   - Priority = `|TD-error| + ε`
-   - Higher error → higher priority
-   - Focuses learning on surprising transitions
-
-**Statistics:**
-- `total_added`: Total experiences added
-- `total_sampled`: Total samples drawn
+**Prioritized Experience Replay:**
+- Sampling probability: `P(i) = p_i^α / Σ p_j^α`
+- Priority = `|TD-error| + ε`
 
 ### **reward_calculator.py**
 
 **RewardCalculator Class:**
 Calculates rewards based on test execution outcomes.
 
-**Reward Weights (from config):**
-```python
-{
-    'bug_found': 10.0,           # Major reward for finding bugs
-    'code_coverage': 5.0,        # Coverage improvement
-    'edge_case_covered': 8.0,    # Edge case discovery
-    'unique_scenario': 6.0,      # Novel test scenarios
-    'false_positive': -3.0,      # Penalty for false positives
-    'redundant_test': -2.0,      # Penalty for redundancy
-    'test_failed': -1.0,         # Minor penalty for test failure
-    'api_error': -5.0'           # Penalty for API errors
-}
-```
-
 **Key Methods:**
-
-1. **calculate_reward(test_results: List, metrics: Dict) -> float**
-   - Main reward calculation
-   - Aggregates rewards from metrics
-   - Applies weights
-   - Normalizes result
-   - Stores in history
-
-2. **calculate_intermediate_reward(state, action) -> float**
-   - Reward before execution (shaping)
-   - Based on test diversity (edge_case=2.0, validation=1.5, happy_path=1.0)
-   - Parameter coverage bonus (×3.0)
-   - Redundancy penalty (-2.0)
-
-3. **_count_unique_scenarios(test_results) -> int**
-   - Creates signature: (endpoint, method, test_type, parameters)
-   - Counts unique combinations
-
-4. **_count_redundant_tests(test_results) -> int**
-   - Creates test signature
-   - Counts duplicates
-
-5. **_normalize_reward(reward: float) -> float**
-   - Clips to [-100, 100]
-   - Applies sigmoid: `2 / (1 + exp(-r/10)) - 1`
-   - Smooths extreme values
-
-**Statistics:**
-
-`get_reward_statistics() -> Dict`
-```python
-{
-    'mean_reward': float,
-    'std_reward': float,
-    'max_reward': float,
-    'min_reward': float,
-    'total_episodes': int,
-    'recent_trend': 'improving|declining|stable'
-}
-```
-
-**Trend Calculation:**
-- Linear regression on recent rewards
-- Slope > 0.1 → improving
-- Slope < -0.1 → declining
-- Otherwise → stable
+1. **calculate_reward(test_results, metrics)**: Main reward calculation
+2. **calculate_intermediate_reward(state, action)**: Pre-execution reward shaping
+3. **get_reward_statistics()**: Returns mean, std, trend analysis
 
 ### **rl_optimizer.py**
 
 **RLOptimizer Class:**
 Main PPO-based reinforcement learning optimizer.
-
-**State Representation:**
-
-Concatenates multiple feature vectors:
-- **API complexity** (128 features): parameter count, types, method, auth, responses
-- **Test coverage** (64 features): test type distribution, total tests, assertions
-- **Historical performance** (256 features): past bug patterns
-- **Current test set** (128 features): diversity, complexity, priority
-
-Total: 576 features
-
-**Action Space:**
-- Dimension: Number of test types (10)
-- Actions: Probabilities for each test type
-- Continuous action space (softmax output)
 
 **Initialization:**
 ```python
@@ -2424,120 +1180,31 @@ def __init__(self):
 
 **Key Methods:**
 
-1. **optimize(state: Dict, test_cases: List) -> List**
-   - Main optimization entry point
-   - Creates state tensor
-   - Gets action probabilities from policy
-   - Selects and reorders test cases
-   - Adds exploration
-   - Returns optimized test cases
-
-2. **create_state(test_cases: List, api_spec: Dict) -> Tensor**
-   - Extracts features
-   - Concatenates feature vectors
-   - Returns state tensor (1 × 576)
-
-**Feature Extractors:**
-
-3. **extract_api_features(api_spec) -> ndarray (128)**
-   - Parameter count (normalized)
-   - Type distribution (string, integer, boolean, object, array)
-   - HTTP method encoding
-   - Authentication flag
-   - Response code count
-   - Validation rule count
-
-4. **extract_coverage_features(test_cases) -> ndarray (64)**
-   - Test type distribution
-   - Total test count
-   - Assertion coverage
-   - Diversity metrics
-
-5. **extract_history_features(api_spec) -> ndarray (256)**
-   - Historical bug patterns
-   - Past failure rates
-   - Common edge cases
-   - (Currently placeholder - would use historical data)
-
-6. **extract_test_features(test_cases) -> ndarray (128)**
-   - Diversity score (unique test types)
-   - Complexity score (average assertions)
-   - Priority score (weighted by test type)
-
-**Test Selection:**
-
-7. **select_test_cases(test_cases: List, action_probs: Tensor) -> List**
-   - Scores each test case
-   - Maps test type to action probability
-   - Adds priority bonus (auth=1.5×, validation=1.5×)
-   - Sorts by score (descending)
-   - Returns sorted tests
-
-8. **add_exploration(test_cases: List, all_tests: List) -> List**
-   - Adds random tests (20% of current selection)
-   - Prevents local optima
-   - Promotes diversity
-
-**Learning:**
-
-9. **update_from_feedback(state, action, reward, next_state, done)**
-   - Stores experience in buffer
-   - Triggers training when buffer ready (min 1000 experiences)
-
-10. **train()**
-    - Main PPO training loop
-    - Samples batch from experience buffer
-    - Calculates GAE (Generalized Advantage Estimation)
-    - Updates policy with clipped objective
-    - Updates value network with MSE loss
-    - Updates learning rate schedule
-    - Decays exploration rate
+1. **optimize(state, test_cases)**: Main entry point → returns optimized test cases
+2. **get_action(state)**: Gets action from policy network (this is the correct method name — not `select_action`)
+3. **create_state(test_cases, api_spec)**: Extracts features → returns state tensor
+4. **select_test_cases(test_cases, action_probs)**: Scores and sorts tests by action probability
+5. **add_exploration(test_cases, all_tests)**: Adds random tests (20%) for diversity
+6. **update_from_feedback(state, action, reward, next_state, done)**: Stores experience, triggers training
+7. **train()**: PPO training loop with GAE, clipped objective, value loss
+8. **calculate_gae(rewards, values, next_values, dones)**: Generalized Advantage Estimation
+9. **save_checkpoint(path)** / **load_checkpoint(path)**: Model persistence
 
 **PPO Training Loop:**
-
+```
 For n_epochs (10):
   1. Get current policy predictions
-  2. Calculate probability ratio: `ratio = exp(log_π_new - log_π_old)`
-  3. Compute surrogate objectives:
-     - `L1 = ratio × advantage`
-     - `L2 = clip(ratio, 1-ε, 1+ε) × advantage`
-  4. Policy loss: `-min(L1, L2) - entropy_bonus`
-  5. Value loss: `MSE(V_pred, returns)`
+  2. Calculate ratio = exp(log_π_new - log_π_old)
+  3. Surrogate objectives: L1 = ratio × advantage, L2 = clip(ratio, 1-ε, 1+ε) × advantage
+  4. Policy loss = -min(L1, L2) - entropy_bonus
+  5. Value loss = MSE(V_pred, returns)
   6. Backpropagate and update
-
-11. **calculate_gae(rewards, values, next_values, dones) -> Tensor**
-    - Generalized Advantage Estimation
-    - Formula: `A_t = δ_t + γλδ_{t+1} + ... + (γλ)^{T-t+1}δ_{T-1}`
-    - Where: `δ_t = r_t + γV(s_{t+1}) - V(s_t)`
-    - Balances bias-variance tradeoff
-    - Returns normalized advantages
-
-**Learning Rate Schedule:**
-
-12. **update_learning_rate()**
-    - Calls `rl_config.get_learning_rate(step)`
-    - Schedules: linear, exponential, cosine annealing
-    - Updates both optimizers
-
-**Checkpointing:**
-
-13. **save_checkpoint(path: str)**
-    - Saves:
-      - Policy network state
-      - Value network state
-      - Optimizer states
-      - Training step
-      - Exploration rate
-
-14. **load_checkpoint(path: str)**
-    - Restores all saved states
-    - Resumes training
+```
 
 **Exploration Strategy:**
 - Initial: 100% exploration
 - Decay: 0.995 per step
 - Minimum: 1% exploration
-- ε-greedy with probability-based exploration
 
 ---
 
@@ -2581,75 +1248,13 @@ class APITestRequest:
 
 7-step pipeline:
 
-1. **_analyze_api(request)**
-   - Parses code files
-   - Builds API specification
-   - Extracts business logic
-   - Extracts validation rules
-   - Returns enriched API spec
-
-2. **_retrieve_context(api_spec)**
-   - Generates embeddings for API spec
-   - Retrieves similar test cases from vector store
-   - Retrieves relevant edge cases
-   - Retrieves validation patterns
-   - Returns context dictionary
-
-3. **_generate_tests(api_spec, context)**
-   - Orchestrates LLM agents
-   - Generates comprehensive test suite
-   - Returns test cases list
-
-4. **_optimize_tests(test_cases, api_spec)**
-   - Creates RL state representation
-   - Gets optimal test selection and ordering
-   - Returns optimized test cases
-
-5. **_execute_tests(test_cases, endpoint_url)**
-   - Executes tests in parallel
-   - Collects results
-   - Returns execution results
-
-6. **_process_feedback(execution_results)**
-   - Updates RAG system with new patterns
-   - Updates RL model with rewards
-   - Detects API drift
-   - Logs warnings if drift detected
-
-7. **_generate_report(execution_results)**
-   - Generates QASE-style report
-   - Returns formatted report
-
-**Session Management:**
-
-`_create_session(request) -> Dict`
-```python
-{
-    'id': 'session_20240101_120000',
-    'request': request,
-    'started_at': datetime.now(),
-    'status': 'in_progress'
-}
-```
-
-**Metrics Tracking:**
-
-`_update_metrics(execution_results)`
-```python
-{
-    'total_tests': int,
-    'passed_tests': int,
-    'failed_tests': int,
-    'pass_rate': float,
-    'bugs_found': int,
-    'edge_cases_covered': int
-}
-```
-
-**Error Handling:**
-- Try-catch around entire pipeline
-- Returns error status with session ID
-- Logs all errors
+1. **_analyze_api(request)**: Parses code files, builds API specification, extracts business logic and validation rules
+2. **_retrieve_context(api_spec)**: Generates embeddings, retrieves similar tests, edge cases, and validation patterns from vector store
+3. **_generate_tests(api_spec, context)**: Orchestrates LLM agents to generate comprehensive test suite
+4. **_optimize_tests(test_cases, api_spec)**: Creates RL state, gets optimal test selection and ordering
+5. **_execute_tests(test_cases, endpoint_url)**: Executes tests in parallel, collects results
+6. **_process_feedback(execution_results)**: Updates RAG system and RL model, detects API drift
+7. **_generate_report(execution_results)**: Generates QASE-style report
 
 **Return Structure:**
 ```python
@@ -2669,84 +1274,36 @@ class APITestRequest:
 **TestGenerationPipeline Class:**
 Manages complete test generation pipeline with stage-based execution.
 
-**PipelineStage Dataclass:**
-```python
-@dataclass
-class PipelineStage:
-    name: str
-    function: callable
-    required: bool = True
-    timeout: int = 60
-```
-
 **Pipeline Stages:**
+1. **validation** (10s timeout): Validates input requirements
+2. **parsing** (30s timeout): Parses API code
+3. **analysis** (60s timeout): Analyzes API specification
+4. **retrieval** (30s timeout): Retrieves context from RAG (uses `query_embedding=` parameter)
+5. **generation** (120s timeout): Generates test cases
+6. **optimization** (60s timeout, optional): Optimizes with RL
+7. **execution** (300s timeout): Executes test cases
+8. **feedback** (30s timeout, optional): Processes feedback
+9. **reporting** (30s timeout): Generates final report
 
-1. **validation** (10s timeout)
-   - Validates input requirements
-   - Checks file existence
-   - Validates language support
+**RAG Retrieval Call (line ~233):**
 
-2. **parsing** (30s timeout)
-   - Parses API code
-   - Extracts components
+The retrieval stage calls RAG retriever methods with the correct parameter name:
 
-3. **analysis** (60s timeout)
-   - Analyzes API specification
-   - Validates API spec
-
-4. **retrieval** (30s timeout)
-   - Retrieves context from RAG
-
-5. **generation** (120s timeout)
-   - Generates test cases
-   - Validates generated tests
-
-6. **optimization** (60s timeout, optional)
-   - Optimizes with RL
-   - Can skip if fails
-
-7. **execution** (300s timeout)
-   - Executes test cases
-   - Collects results
-
-8. **feedback** (30s timeout, optional)
-   - Processes feedback
-   - Updates knowledge base
-
-9. **reporting** (30s timeout)
-   - Generates final report
-
-**Key Methods:**
-
-**run(request: Dict) -> Dict**
-- Executes all stages sequentially
-- Handles timeouts with asyncio.wait_for
-- Skips optional stages on failure
-- Calculates pipeline metrics
-- Returns comprehensive results
-
-**_execute_stage(stage: PipelineStage, request: Dict)**
-- Executes single stage with timeout
-- Stores result in stage_results
-- Logs duration
-- Raises on timeout or error (if required)
-
-**Stage Functions:**
-
-Each stage function (e.g., _validate_input, _parse_code) calls corresponding CoreEngine methods.
-
-**Metrics:**
 ```python
-{
-    'total_duration': float,
-    'stages_completed': int,
-    'total_stages': int,
-    'success_rate': float,
-    'tests_generated': int,
-    'tests_executed': int,
-    'test_pass_rate': float
+retrieval_map = {
+    'similar_tests': self.rag_system.retrieve_similar_tests,
+    'edge_cases': self.rag_system.retrieve_edge_cases,
+    'validation_patterns': self.rag_system.retrieve_validation_patterns,
 }
+
+for key, retriever_method in retrieval_map.items():
+    results = await retriever_method(query_embedding=embeddings, k=10)
 ```
+
+**Key Method:** `run(request: Dict) -> Dict`
+- Executes all stages sequentially with timeouts
+- Skips optional stages on failure
+- Returns comprehensive results with pipeline metrics
 
 ---
 
@@ -2798,12 +1355,16 @@ Expected ReportGenerator class would:
    │   ├── edge_cases
    │   └── validation_rules
    ├── Retriever → Retrieve top-k similar documents
+   │   (uses query_embedding= parameter)
    ├── Optional: Cross-encoder reranking
    ├── Optional: MMR for diversity
    └── Output: Retrieved Context
 
 4. LLM TEST GENERATION
-   ├── Agent Manager orchestration
+   ├── LlamaOrchestrator (async context manager)
+   │   ├── __aenter__() → initializes LlamaClient + AgentManager
+   │   └── __aexit__() → cleans up client
+   ├── AgentManager receives llama_client, passes to all agents
    ├── AnalyzerAgent → Analyze API (priority 1)
    │   └── Output: Analysis (critical params, auth, business logic)
    ├── Parallel execution (priority 2):
@@ -2827,12 +1388,13 @@ Expected ReportGenerator class would:
    └── Output: Complete Test Suite
 
 5. RL OPTIMIZATION
-   ├── Extract features → Create state representation
+   ├── extract_state() → Create 64-dim state vector
    │   ├── API complexity features
    │   ├── Test coverage features
    │   ├── Historical performance features
    │   └── Current test set features
    ├── PolicyNetwork → Predict action probabilities
+   ├── RLOptimizer.get_action(state) → Select action
    ├── Score and rank test cases
    ├── Add exploration (ε-greedy)
    └── Output: Optimized Test Suite
@@ -2907,128 +1469,44 @@ Expected ReportGenerator class would:
 **RLTrainer Class:**
 Standalone RL training script.
 
-**Purpose:** Train policy and value networks on historical data
-
 **Key Methods:**
-
-1. **__init__(state_dim, action_dim, device=None, save_dir=None)**
-   - Initializes networks and optimizer
-   - Creates experience buffer
-   - Sets up checkpoint directory
-
-2. **add_experience(exp: Experience)**
-   - Adds experience to buffer
-   - Used to populate buffer before training
-
-3. **train_step() -> Dict**
-   - Runs single optimizer step
-   - Returns training metrics
-
-4. **fit(steps: int)**
-   - Runs multiple training steps
-   - Logs progress every 50 steps
-   - Prints final duration
-
-5. **save_checkpoint(name='checkpoint.pt') -> Path**
-   - Saves model states
-   - Saves optimizer states
-   - Saves dimensions
-
-6. **load_checkpoint(path: Path)**
-   - Loads model states
-   - Loads optimizer states
-   - Allows resuming training
-
-**Usage:**
-```python
-trainer = RLTrainer(state_dim=576, action_dim=10)
-# Add experiences
-for exp in experiences:
-    trainer.add_experience(exp)
-# Train
-trainer.fit(steps=1000)
-# Save
-trainer.save_checkpoint('model.pt')
-```
+1. **__init__(state_dim, action_dim, device=None, save_dir=None)**: Initializes networks and optimizer
+2. **add_experience(exp)**: Adds experience to buffer
+3. **train_step()**: Runs single optimizer step
+4. **fit(steps)**: Runs multiple training steps with logging
+5. **save_checkpoint(name)** / **load_checkpoint(path)**: Model persistence
 
 ### **evaluate.py**
 
 **Evaluator Class:**
 Runs test executor and generates reports.
 
-**Purpose:** Evaluate trained RL model on test set
-
 **Key Methods:**
+1. **__init__(state_dim, action_dim, checkpoint=None, device=None)**: Loads policy network
+2. **evaluate(**kwargs)**: Executes tests through TestExecutor
+3. **generate_report(results, output_path=None)**: Generates report
 
-1. **__init__(state_dim, action_dim, checkpoint=None, device=None)**
-   - Loads policy network
-   - Loads checkpoint if provided
-   - Initializes TestExecutor
-
-2. **evaluate(**kwargs) -> Dict**
-   - Executes tests through TestExecutor
-   - Compatible with multiple method names (run, execute, run_tests)
-   - Returns execution results
-
-3. **generate_report(results, output_path=None) -> Optional[Path]**
-   - Generates report using ReportGenerator
-   - Tries common method names (generate, write, render, save)
-   - Returns path to generated report
-
-**Usage:**
-```python
-evaluator = Evaluator(
-    state_dim=576,
-    action_dim=10,
-    checkpoint=Path('model.pt')
-)
-results = evaluator.evaluate()
-report_path = evaluator.generate_report(results)
-```
+**Note:** The Evaluator uses `RLOptimizer.get_action(state)` (not `select_action`).
 
 ### **index_knowledge.py**
 
 **KnowledgeIndexerRunner Class:**
 Indexes knowledge base documents into vector store.
 
-**Purpose:** Build/update vector indices for RAG system
-
 **Key Methods:**
+1. **__init__(out_dir=None)**: Dynamically imports RAG modules
+2. **index_paths(paths, namespace)**: Indexes files into vector store
 
-1. **__init__(out_dir=None)**
-   - Dynamically imports RAG modules
-   - Sets output directory for indices
+### Location: `utils/`
 
-2. **_resolve(module, candidates: List[str])**
-   - Resolves class/function names from module
-   - Tries multiple candidate names
-   - Provides flexibility for evolving APIs
+Utility modules for logging, common helpers, and shared functions.
 
-3. **index_paths(paths: Iterable[Path], namespace='default') -> Path**
-   - Indexes files into vector store
-   - Steps:
-     1. Validates file paths
-     2. Resolves RAG components (Chunker, Embedder, Indexer, VectorStore)
-     3. Instantiates components
-     4. Reads and chunks documents
-     5. Adds chunks to index
-     6. Persists index
-   - Returns path to created index
+### Root-Level Scripts
 
-**Usage:**
-```python
-indexer = KnowledgeIndexerRunner(out_dir='data/vectors')
-index_path = indexer.index_paths(
-    paths=[Path('test1.py'), Path('test2.py')],
-    namespace='test_patterns'
-)
-```
-
-**Component Resolution:**
-- Tries multiple naming conventions
-- Handles callable factories or classes
-- Fallback strategies for missing components
-- Graceful error handling
+- **`main.py`**: Main application entry point — orchestrates the full pipeline
+- **`check_indices.py`**: Diagnostic script for inspecting FAISS vector store indices
+- **`load_test_cases_to_rag.py`**: Utility for loading test case data into the RAG system
+- **`rag_diagnosis.py`**: Diagnostic script for debugging RAG retrieval issues
 
 ---
 
@@ -3074,20 +1552,9 @@ pip install -r requirements.txt
 
 ### LM Studio Setup
 
-1. **Download LM Studio:**
-   - Visit https://lmstudio.ai/
-   - Download for your platform
-
-2. **Download Llama 3.2 Model:**
-   - Open LM Studio
-   - Search for "llama-3.2-3b-instruct"
-   - Download model
-
-3. **Start Server:**
-   - Load model in LM Studio
-   - Click "Start Server"
-   - Verify running on http://127.0.0.1:1234
-
+1. **Download LM Studio:** Visit https://lmstudio.ai/
+2. **Download Llama 3.2 Model:** Search for "llama-3.2-3b-instruct" and download
+3. **Start Server:** Load model → Click "Start Server" → Verify running on http://127.0.0.1:1234
 4. **Test Connection:**
 ```python
 from llm.llama_client import LlamaClient
@@ -3097,10 +1564,10 @@ async with LlamaClient() as client:
     print(response)
 ```
 
-### Directory Structure Setup
+### Directory Structure
 
 ```bash
-api-testing-agent/
+Autonomous-AI-API-Testing/
 ├── config/
 │   ├── __init__.py
 │   ├── settings.py
@@ -3108,7 +1575,7 @@ api-testing-agent/
 │   ├── rag_config.py
 │   └── rl_config.py
 ├── input_processing/
-│   ├── __init__.py
+│   ├── __init__.py              # InputProcessor façade
 │   ├── parser_factory.py
 │   ├── parsers/
 │   │   ├── base_parser.py
@@ -3121,19 +1588,23 @@ api-testing-agent/
 │   └── specification_builder.py
 ├── rag/
 │   ├── __init__.py
-│   ├── vector_store.py
-│   ├── embeddings.py
-│   ├── chunking.py
-│   ├── retriever.py
-│   ├── indexer.py
-│   └── knowledge_base.py
+│   ├── vector_store.py          # FAISS vector database
+│   ├── embeddings.py            # Embedding generation
+│   ├── chunking.py              # Document chunking
+│   ├── retriever.py             # Similarity search & retrieval
+│   ├── indexer.py               # Document indexing
+│   └── knowledge_base.py        # Structured knowledge management
 ├── llm/
 │   ├── __init__.py
-│   ├── llama_client.py
+│   ├── llama_client.py          # LM Studio client (async context manager)
+│   ├── orchestrator.py          # LlamaOrchestrator (async context manager)
+│   ├── agent_manager.py         # Agent coordination
+│   ├── connection_check.py      # LM Studio connectivity check
+│   ├── response_parser.py       # LLM response parsing
 │   ├── prompts/
+│   │   ├── __init__.py
 │   │   ├── prompt_templates.py
 │   │   └── prompt_builder.py
-│   ├── response_parser.py
 │   └── agents/
 │       ├── base_agent.py
 │       ├── analyzer_agent.py
@@ -3147,24 +1618,39 @@ api-testing-agent/
 │   ├── value_network.py
 │   ├── experience_buffer.py
 │   ├── reward_calculator.py
-│   └── rl_optimizer.py
+│   ├── rl_optimizer.py          # Main PPO optimizer (get_action method)
+│   └── state_extractor.py       # 64-dim state vector extraction
 ├── core/
 │   ├── __init__.py
-│   ├── engine.py
-│   └── pipeline.py
+│   ├── engine.py                # CoreEngine orchestrator
+│   └── pipeline.py              # Stage-based pipeline
+├── test_execution/
+│   └── (test executor — not fully implemented)
 ├── scripts/
-│   ├── train.py
-│   ├── evaluate.py
-│   └── index_knowledge.py
+│   ├── __init__.py
+│   ├── train.py                 # RL training
+│   ├── evaluate.py              # Model evaluation
+│   └── index_knowledge.py       # Knowledge indexing
+├── utils/
+│   └── (utility modules)
+├── output/
+│   └── (generated reports)
+├── logs/
+│   └── (application logs)
 ├── data/
 │   ├── training/
 │   ├── vectors/
 │   ├── models/
 │   ├── reports/
 │   └── knowledge_base/
-├── logs/
+├── main.py                      # Application entry point
+├── check_indices.py             # FAISS diagnostic
+├── load_test_cases_to_rag.py    # RAG data loading
+├── rag_diagnosis.py             # RAG diagnostic
 ├── requirements.txt
-└── .env
+├── .env
+├── .gitignore
+└── README.md
 ```
 
 ### Environment Configuration
@@ -3219,10 +1705,8 @@ import asyncio
 from core.engine import CoreEngine, APITestRequest
 
 async def test_api():
-    # Create engine
     engine = CoreEngine()
     
-    # Create request
     request = APITestRequest(
         code_files=['Controllers/UserController.cs'],
         language='csharp',
@@ -3231,21 +1715,13 @@ async def test_api():
         include_edge_cases=True
     )
     
-    # Process API
     result = await engine.process_api(request)
     
-    # Check results
     if result['status'] == 'success':
         print(f"Session ID: {result['session_id']}")
         print(f"Total tests: {result['metrics']['total_tests']}")
         print(f"Pass rate: {result['metrics']['pass_rate']:.2%}")
         print(f"Bugs found: {result['metrics']['bugs_found']}")
-        
-        # Save report
-        with open('report.json', 'w') as f:
-            json.dump(result['report'], f, indent=2)
-    else:
-        print(f"Error: {result['error']}")
 
 asyncio.run(test_api())
 ```
@@ -3269,11 +1745,6 @@ async def run_pipeline():
     
     print(f"Pipeline completed: {result['status']}")
     print(f"Stages completed: {result['stages_completed']}")
-    print(f"Duration: {result['metrics']['total_duration']:.2f}s")
-    
-    # Access results
-    test_cases = result['results']['test_cases']
-    report = result['results']['report']
 
 asyncio.run(run_pipeline())
 ```
@@ -3299,8 +1770,6 @@ async def use_agents():
             context={}
         )
         
-        print("Analysis:", analysis)
-        
         # Design tests
         designer = TestDesignerAgent(client)
         tests = await designer.design_tests(
@@ -3310,92 +1779,79 @@ async def use_agents():
         )
         
         print(f"Generated {len(tests)} test cases")
-        for test in tests[:3]:
-            print(f"- {test['name']}: {test['description']}")
 
 asyncio.run(use_agents())
 ```
 
-### Example 4: RAG System Usage
+### Example 4: Using the Orchestrator
+
+```python
+from llm.orchestrator import LlamaOrchestrator
+
+async def use_orchestrator():
+    async with LlamaOrchestrator() as orchestrator:
+        result = await orchestrator.generate_test_suite(
+            api_spec=spec,
+            context=context,
+            config={'max_tests': 50}
+        )
+        print(f"Generated {len(result.get('test_cases', []))} tests")
+
+asyncio.run(use_orchestrator())
+```
+
+### Example 5: RAG System Usage
 
 ```python
 from rag import RAGSystem
 from input_processing import InputProcessor
 
 async def use_rag():
-    # Parse API code
     processor = InputProcessor()
     parsed_data = processor.parse_code(['api.cs'], 'csharp')
     api_spec = processor.build_specification(parsed_data)
     
-    # Initialize RAG
     rag = RAGSystem()
-    
-    # Generate embeddings
     embeddings = await rag.generate_embeddings(api_spec)
     
-    # Retrieve similar tests
-    similar_tests = await rag.retrieve_similar_tests(embeddings, k=5)
-    print(f"Found {len(similar_tests)} similar tests")
-    
-    # Retrieve edge cases
-    edge_cases = await rag.retrieve_edge_cases(embeddings, k=5)
-    print(f"Found {len(edge_cases)} relevant edge cases")
-    
-    # Index new test case
-    test_case = {
-        'name': 'Test user creation',
-        'test_type': 'happy_path',
-        'endpoint': '/api/users',
-        'method': 'POST'
-    }
-    await rag.index_test_cases([test_case])
+    # Use query_embedding= parameter for retrieval
+    similar_tests = await rag.retrieve_similar_tests(query_embedding=embeddings, k=5)
+    edge_cases = await rag.retrieve_edge_cases(query_embedding=embeddings, k=5)
 
 asyncio.run(use_rag())
 ```
 
-### Example 5: RL Training
+### Example 6: RL Training
 
 ```python
 from scripts.train import RLTrainer
 from reinforcement_learning.experience_buffer import Experience
 import torch
 
-# Initialize trainer
-trainer = RLTrainer(
-    state_dim=576,
-    action_dim=10,
-    save_dir='data/models'
-)
+trainer = RLTrainer(state_dim=64, action_dim=10, save_dir='data/models')
 
 # Add training experiences
-# (In practice, these come from test execution)
 for i in range(1000):
-    state = torch.randn(576)
+    state = torch.randn(64)
     action = torch.randint(0, 10, (1,))
     reward = np.random.random()
-    next_state = torch.randn(576)
+    next_state = torch.randn(64)
     done = False
     
     exp = Experience(state, action, reward, next_state, done)
     trainer.add_experience(exp)
 
-# Train
 trainer.fit(steps=500)
-
-# Save checkpoint
 checkpoint_path = trainer.save_checkpoint('trained_model.pt')
-print(f"Model saved to {checkpoint_path}")
 ```
 
-### Example 6: Knowledge Base Management
+### Example 7: Knowledge Base Management
 
 ```python
 from rag.knowledge_base import KnowledgeBase
 
 kb = KnowledgeBase()
 
-# Add test pattern
 kb.add_knowledge('test_patterns', {
     'name': 'Rate Limiting Test',
     'description': 'Test API rate limiting',
@@ -3406,78 +1862,10 @@ kb.add_knowledge('test_patterns', {
     }
 })
 
-# Get patterns for endpoint
 patterns = kb.get_test_pattern_for_endpoint('POST')
-print(f"Found {len(patterns)} patterns for POST")
-
-# Get edge cases for data type
 string_edge_cases = kb.get_edge_cases_for_type('string')
-for case in string_edge_cases[:3]:
-    print(f"- {case['description']}: {case['value']}")
-
-# Search knowledge base
 results = kb.search_knowledge('sql injection')
-print(f"Found {len(results)} items about SQL injection")
-
-# Export knowledge
-export_path = kb.export_knowledge()
-print(f"Knowledge exported to {export_path}")
-
-# Statistics
 stats = kb.get_statistics()
-print(f"Total items: {stats['total_items']}")
-print(f"By type: {stats['by_type']}")
-```
-
-### Example 7: Custom Parser Registration
-
-```python
-from input_processing import ParserFactory
-from input_processing.parsers import BaseParser
-
-# Create custom parser
-class RustParser(BaseParser):
-    def parse(self, code_files):
-        # Implementation
-        pass
-    
-    def extract_endpoints(self, code):
-        # Implementation
-        pass
-    
-    # ... other methods
-
-# Register parser
-factory = ParserFactory()
-factory.register_parser('rust', RustParser)
-
-# Use parser
-parser = factory.get_parser('rust')
-parsed_data = parser.parse(['api.rs'])
-```
-
-### Example 8: Indexing Custom Knowledge
-
-```python
-from scripts.index_knowledge import KnowledgeIndexerRunner
-from pathlib import Path
-
-# Initialize indexer
-indexer = KnowledgeIndexerRunner(out_dir='data/vectors')
-
-# Index test files
-test_files = [
-    Path('tests/test_users.py'),
-    Path('tests/test_products.py'),
-    Path('tests/test_orders.py')
-]
-
-index_path = indexer.index_paths(
-    paths=test_files,
-    namespace='custom_tests'
-)
-
-print(f"Indexed {len(test_files)} files to {index_path}")
 ```
 
 ---
@@ -3495,17 +1883,7 @@ class CustomSecurityAgent(BaseAgent):
     
     async def execute(self, input_data):
         api_spec = input_data['api_spec']
-        
-        prompt = f"""
-        Generate advanced security test cases for:
-        {api_spec}
-        
-        Focus on:
-        - OWASP Top 10 vulnerabilities
-        - Zero-day attack patterns
-        - Advanced injection techniques
-        """
-        
+        prompt = f"Generate advanced security test cases for: {api_spec}"
         response = await self.generate_json_with_retry(prompt)
         return response
 
@@ -3524,56 +1902,17 @@ class CustomRewardCalculator(RewardCalculator):
     def calculate_reward(self, test_results, metrics):
         reward = super().calculate_reward(test_results, metrics)
         
-        # Add custom rewards
         if metrics.get('critical_bug_found'):
             reward += 50.0
-        
         if metrics.get('security_vulnerability_found'):
             reward += 30.0
-        
-        # Custom penalty
         if metrics.get('slow_test'):
             reward -= 5.0
         
         return reward
 
-# Use in RL optimizer
 rl_optimizer = RLOptimizer()
 rl_optimizer.reward_calculator = CustomRewardCalculator()
-```
-
-### Custom Chunking Strategy
-
-```python
-from rag.chunking import ChunkingStrategy, Chunk
-
-class CustomChunker(ChunkingStrategy):
-    def chunk_document(self, document, metadata=None, strategy='custom'):
-        # Custom chunking logic
-        chunks = []
-        
-        # Example: Split by API endpoint definitions
-        endpoints = self.extract_endpoints(document)
-        
-        for i, endpoint in enumerate(endpoints):
-            chunk = Chunk(
-                text=endpoint,
-                metadata={'endpoint_index': i, **metadata},
-                start_idx=0,
-                end_idx=len(endpoint),
-                chunk_id=f"endpoint_{i}"
-            )
-            chunks.append(chunk)
-        
-        return chunks
-    
-    def extract_endpoints(self, document):
-        # Implementation
-        pass
-
-# Use custom chunker
-chunker = CustomChunker()
-chunks = chunker.chunk_document(api_code, strategy='custom')
 ```
 
 ---
@@ -3586,95 +1925,58 @@ chunks = chunker.chunk_document(api_code, strategy='custom')
 ```
 Error: Connection refused to http://127.0.0.1:1234
 ```
-Solution:
-- Ensure LM Studio is running
-- Verify server is started in LM Studio
-- Check firewall settings
-- Verify base URL in config
+Solution: Ensure LM Studio is running with the server started. Verify base URL in config.
 
 **2. FAISS Index Error**
 ```
 RuntimeError: Index not trained
 ```
-Solution:
-- IVF indices require training
-- Ensure at least nlist (100) vectors before searching
-- Or use Flat index for small datasets
+Solution: The updated VectorStore starts with a Flat index by default and automatically falls back from IVF when insufficient training data is present. If you still encounter this error, ensure you are using the updated `vector_store.py`.
 
 **3. Out of Memory (GPU)**
 ```
 RuntimeError: CUDA out of memory
 ```
-Solution:
-- Reduce batch_size in config
-- Use CPU instead: `torch.device('cpu')`
-- Reduce network sizes
-- Use gradient accumulation
+Solution: Reduce batch_size in config, use CPU (`torch.device('cpu')`), or reduce network sizes.
 
 **4. Parser Not Found**
 ```
 ValueError: Unsupported language: go
 ```
-Solution:
-- Check SUPPORTED_LANGUAGES in config
-- Implement parser for new language
-- Register parser with factory
+Solution: Check SUPPORTED_LANGUAGES in config. Implement and register a parser for the new language.
 
 **5. JSON Parsing Error**
 ```
 JSONDecodeError: Expecting value
 ```
-Solution:
-- LLM response not properly formatted
-- Adjust temperature (lower for more deterministic)
-- Improve prompt instructions
-- Use retry logic (already implemented)
+Solution: LLM response not properly formatted. Adjust temperature (lower = more deterministic). Retry logic is built in.
+
+**6. Unresolved Method Errors**
+
+If your IDE reports unresolved method references, verify:
+- `LlamaOrchestrator` uses `__aenter__`/`__aexit__` (not `initialize()`/`close()`)
+- `RLOptimizer` uses `get_action()` (not `select_action()`)
+- Retriever methods use `query_embedding=` parameter (not `embeddings`)
+- `AgentManager` constructor takes `llama_client` parameter
 
 ### Performance Optimization
 
-**1. Faster Retrieval:**
+**Faster Retrieval:**
 ```python
-# Use HNSW index instead of IVF
-rag_config.index_type = "HNSW"
-
-# Reduce top_k
-rag_config.top_k = 5
-
-# Disable reranking for speed
-rag_config.rerank = False
+rag_config.index_type = "HNSW"  # Use HNSW instead of IVF
+rag_config.top_k = 5            # Reduce top_k
+rag_config.rerank = False        # Disable reranking for speed
 ```
 
-**2. Faster Generation:**
+**Faster Generation:**
 ```python
-# Reduce max_tokens
-llama_config.max_tokens = 1024
-
-# Increase temperature for faster sampling
-llama_config.temperature = 0.8
-
-# Disable streaming
-llama_config.stream = False
+llama_config.max_tokens = 1024  # Reduce max_tokens
+llama_config.temperature = 0.8  # Increase temperature
 ```
 
-**3. Parallel Processing:**
+**Parallel Processing:**
 ```python
-# Increase workers
 settings.MAX_WORKERS = 20
-
-# Use async/await throughout
-async def process_multiple():
-    tasks = [engine.process_api(req) for req in requests]
-    results = await asyncio.gather(*tasks)
-```
-
-**4. Caching:**
-```python
-# Enable embedding cache
-rag_config.enable_cache = True
-rag_config.cache_ttl = 7200
-
-# Pre-generate embeddings
-embeddings = await rag.embedding_manager.embed_batch(texts)
 ```
 
 ---
@@ -3696,12 +1998,11 @@ async def test_embeddings():
     manager = EmbeddingManager()
     embedding = await manager.embed_text("test")
     assert embedding.shape == (768,)
-    assert np.linalg.norm(embedding) == pytest.approx(1.0)
 
 # Test RL components
 def test_policy_network():
-    net = PolicyNetwork(state_dim=576, action_dim=10)
-    state = torch.randn(1, 576)
+    net = PolicyNetwork(state_dim=64, action_dim=10)
+    state = torch.randn(1, 64)
     probs = net(state)
     assert probs.shape == (1, 10)
     assert torch.allclose(probs.sum(), torch.tensor(1.0))
@@ -3737,7 +2038,6 @@ async def test_full_pipeline():
 # input_processing/parsers/go_parser.py
 class GoParser(BaseParser):
     def parse(self, code_files):
-        # Implement Go parsing
         pass
 ```
 
@@ -3766,7 +2066,6 @@ class PerformanceAgent(BaseAgent):
         super().__init__(llama_client, 'performance')
     
     async def execute(self, input_data):
-        # Implement performance testing logic
         pass
 ```
 
@@ -3775,23 +2074,8 @@ class PerformanceAgent(BaseAgent):
 # llm/agent_manager.py
 self.agents = {
     # ...
-    AgentType.PERFORMANCE: PerformanceAgent()
+    AgentType.PERFORMANCE: PerformanceAgent(llama_client)
 }
-```
-
-### Adding New Knowledge Type
-
-```python
-# rag/knowledge_base.py
-self.knowledge_types = {
-    # ...
-    'performance_patterns': 'Performance testing patterns'
-}
-
-# Add default knowledge
-def _add_default_performance_patterns(self):
-    patterns = [...]
-    self.knowledge['performance_patterns'] = patterns
 ```
 
 ---
@@ -3812,17 +2096,27 @@ def _add_default_performance_patterns(self):
 
 **RAGSystem**
 - `generate_embeddings(data: Any) -> np.ndarray`
-- `retrieve_similar_tests(embedding, k) -> List`
+- `retrieve_similar_tests(query_embedding, k) -> List`
+- `retrieve_edge_cases(query_embedding, k) -> List`
+- `retrieve_validation_patterns(query_embedding, k) -> List`
 - `index_test_cases(test_cases: List)`
 
 **RLOptimizer**
 - `optimize(state: Dict, test_cases: List) -> List`
+- `get_action(state) -> action`
 - `train()`
 
-**LlamaClient**
+**LlamaClient** (async context manager)
 - `generate(prompt: str) -> str`
 - `generate_json(prompt: str, schema: Dict) -> Dict`
 - `chat(messages: List[Dict]) -> str`
+
+**LlamaOrchestrator** (async context manager)
+- `generate_test_suite(api_spec, context, config) -> Dict`
+
+**AgentManager**
+- `__init__(llama_client)`: Receives LlamaClient, creates all agents
+- `orchestrate(api_spec, context) -> Dict`
 
 **Agents**
 - `AnalyzerAgent.analyze(api_spec, context) -> Dict`
@@ -3877,39 +2171,12 @@ def _add_default_performance_patterns(self):
 
 ### Planned Features
 
-1. **Additional Language Support:**
-   - Go
-   - Ruby
-   - TypeScript/Node.js
-   - Kotlin
-
-2. **Enhanced Test Execution:**
-   - Parallel test execution
-   - Test result caching
-   - Retry mechanisms
-   - Mock server integration
-
-3. **Advanced RL:**
-   - Multi-agent RL
-   - Meta-learning for rapid adaptation
-   - Transfer learning across APIs
-
-4. **Improved RAG:**
-   - Hybrid retrieval (dense + sparse)
-   - Query expansion
-   - Adaptive chunking
-
-5. **UI/Dashboard:**
-   - Web interface
-   - Real-time monitoring
-   - Interactive test editing
-   - Visualization of coverage
-
-6. **Integration:**
-   - CI/CD pipelines
-   - JIRA/Azure DevOps
-   - Postman collections
-   - Swagger/OpenAPI import
+1. **Additional Language Support:** Go, Ruby, TypeScript/Node.js, Kotlin
+2. **Enhanced Test Execution:** Parallel execution, result caching, retry mechanisms, mock server integration
+3. **Advanced RL:** Multi-agent RL, meta-learning, transfer learning across APIs
+4. **Improved RAG:** Hybrid retrieval (dense + sparse), query expansion, adaptive chunking
+5. **UI/Dashboard:** Web interface, real-time monitoring, interactive test editing
+6. **Integration:** CI/CD pipelines, JIRA/Azure DevOps, Postman collections, Swagger/OpenAPI import
 
 ---
 
@@ -3940,4 +2207,4 @@ For issues, questions, or contributions, please refer to the project repository.
 
 **End of Documentation**
 
-This comprehensive README covers every aspect of this API Testing Agent project, from high-level architecture to implementation details of each module, class, and method. The documentation is designed to be both a reference manual and a learning resource for understanding the system's complex interactions between code parsing, RAG, LLM agents, and reinforcement learning.
+This comprehensive README covers every aspect of the API Testing Agent project, from high-level architecture to implementation details of each module, class, and method. The documentation reflects the current state of the codebase including corrected method signatures, async context manager patterns, and FAISS integration fixes.
