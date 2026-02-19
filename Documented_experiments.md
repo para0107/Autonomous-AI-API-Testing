@@ -330,9 +330,6 @@ Policy Loss
         +---------------------
          E1  E2  E3  E4  E5  E6
 ```
-
-### ASCII Policy Loss Plot — All Experiments (final value per experiment)
-
 ---
 
 ## Open Issues
